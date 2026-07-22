@@ -438,6 +438,32 @@ function fmtGs(n){return 'Gs. '+new Intl.NumberFormat('es-PY').format(Math.round
 function fmtUSD(n){return '$ '+new Intl.NumberFormat('es-PY',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);}
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+
+// ══════════════════════════════════════════════
+// SEGURIDAD: Hash de contraseñas con SHA-256
+// ══════════════════════════════════════════════
+async function hashPassword(plain){
+  const enc=new TextEncoder().encode(plain);
+  const buf=await crypto.subtle.digest('SHA-256',enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function verifyPassword(plain,hash){
+  return (await hashPassword(plain))===hash;
+}
+// Migración automática: convierte contraseñas en texto plano a hash SHA-256
+async function migratePasswords(){
+  let migrated=false;
+  for(const u of DB.users){
+    if(u.password&&!u.passwordHash){
+      u.passwordHash=await hashPassword(u.password);
+      delete u.password;
+      migrated=true;
+    }
+  }
+  if(migrated){save();console.log('Contraseñas migradas a hash SHA-256');}
+}
+// Iniciar migración al cargar (async, no bloquea)
+migratePasswords().catch(e=>console.warn('migratePasswords error:',e));
 function fd(s){if(!s)return '-';return new Date(s+'T12:00:00').toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fdt(s){if(!s)return '-';return new Date(s).toLocaleString('es-PY',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}
 function save(){
@@ -493,17 +519,34 @@ function changeCur(c){DB.currency.display=c;save();render();}
 function loginHTML(){
   return '<div id="login-screen"><div class="login-card">'
     +'<div class="login-logo"><div class="hn">&#127968; Hotel Manager</div><div class="sn">Sistema de Gestion Hotelera v5</div></div>'
-    +'<div class="field"><label>Usuario</label><input id="lu" type="text" placeholder="usuario"></div>'
-    +'<div class="field"><label>Contrasena</label><input id="lp" type="password" placeholder="..."></div>'
+    +'<div class="field"><label>Usuario</label><input id="lu" type="text" placeholder="usuario" autocomplete="username"></div>'
+    +'<div class="field"><label>Contrasena</label><input id="lp" type="password" placeholder="••••••••" autocomplete="current-password"></div>'
     +'<div id="lerr" class="alert error" style="display:none"></div>'
-    +'<button class="btn-primary" onclick="doLogin()" style="width:100%;margin-top:10px">Ingresar</button>'
-    +'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text3)">victor/admin123 | admin/hotel2024 | recep/recep123</div>'
+    +'<button class="btn-primary" id="btn-login" onclick="doLogin()" style="width:100%;margin-top:10px">Ingresar</button>'
     +'</div></div>';
 }
-function doLogin(){
-  const u=document.getElementById('lu').value.trim(),p=document.getElementById('lp').value;
-  const user=DB.users.find(x=>x.username===u&&x.password===p&&x.active);
-  if(!user){const e=document.getElementById('lerr');e.style.display='block';e.textContent='Usuario o contrasena incorrectos';return;}
+async function doLogin(){
+  const u=document.getElementById('lu').value.trim();
+  const p=document.getElementById('lp').value;
+  const btn=document.getElementById('btn-login');
+  if(btn){btn.disabled=true;btn.textContent='Verificando...';}
+  const user=DB.users.find(x=>x.username===u&&x.active);
+  let ok=false;
+  if(user){
+    if(user.passwordHash){
+      ok=await verifyPassword(p,user.passwordHash);
+    } else if(user.password){
+      // Contraseña aún en texto plano (no debería ocurrir post-migración)
+      ok=(user.password===p);
+      if(ok){user.passwordHash=await hashPassword(p);delete user.password;save();}
+    }
+  }
+  if(!ok){
+    const e=document.getElementById('lerr');
+    if(e){e.style.display='block';e.textContent='Usuario o contrasena incorrectos';}
+    if(btn){btn.disabled=false;btn.textContent='Ingresar';}
+    return;
+  }
   CU=user;log('login','Inicio de sesion');render();
 }
 function logout(){log('logout','Salida');CU=null;TAB='dashboard';render();}
@@ -3157,6 +3200,7 @@ function cfgUsers(){
       +'<td><span class="badge '+(u.active?'green':'amber')+'">'+(u.active?'Activo':'Inactivo')+'</span></td>'
       +'<td class="flex">'+(u.id!==CU.id?'<button class="btn-secondary btn-xs" onclick="togUser(\''+u.id+'\')">'+(u.active?'Desactivar':'Activar')+'</button>':'')
       +(can('admin')&&u.id!==CU.id&&u.role!=='superadmin'?'<button class="btn-secondary btn-xs" onclick="mEditUserRole(\''+u.id+'\')" title="Cambiar rol">Rol</button>':'')
+      +(can('superadmin')?'<button class="btn-amber btn-xs" onclick="mChangePassword(\\\''+u.id+'\\\')" title="Cambiar contrasena">&#128273; Clave</button>':'')
       +'</td></tr>').join('')+'</table></div></div>';}
 function togUser(id){const u=DB.users.find(x=>x.id===id);u.active=!u.active;save();render();}
 function mAddUser(){
@@ -3172,7 +3216,18 @@ function mAddUser(){
     +'<div class="modal-footer"><button class="btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="doAddUser()">Crear usuario</button></div>'
     +'</div>');
 }
-function doAddUser(){const name=document.getElementById('unn').value.trim();const username=document.getElementById('unu').value.trim();const password=document.getElementById('unp').value;const role=document.getElementById('unr').value;if(!name||!username||!password){toast('Completa todos los campos','error');return;}if(DB.users.find(u=>u.username===username)){toast('Usuario ya existe','error');return;}DB.users.push({id:uid(),name,username,password,role,active:true});save();log('user','Creado: '+username);closeModal();render();toast('Usuario creado','success');}
+async function doAddUser(){
+  const name=document.getElementById('unn').value.trim();
+  const username=document.getElementById('unu').value.trim();
+  const password=document.getElementById('unp').value;
+  const role=document.getElementById('unr').value;
+  if(!name||!username||!password){toast('Completa todos los campos','error');return;}
+  if(password.length<6){toast('La contrasena debe tener al menos 6 caracteres','error');return;}
+  if(DB.users.find(u=>u.username===username)){toast('Usuario ya existe','error');return;}
+  const passwordHash=await hashPassword(password);
+  DB.users.push({id:uid(),name,username,passwordHash,role,active:true});
+  save();log('user','Creado: '+username);closeModal();render();toast('Usuario creado','success');
+}
 function cfgDatos(){
   const sz=Math.round(JSON.stringify(DB).length/1024);
   return '<div class="card"><div class="card-title mb12">Datos del sistema</div>'
@@ -3269,6 +3324,38 @@ function doEditUserRole(uid2){
   const oldRole=u.role;
   u.role=document.getElementById('er-rol').value;
   save();log('edit_role','Rol de '+u.name+' cambiado de '+oldRole+' a '+u.role);closeModal();render();toast('Rol actualizado: '+u.role,'success');
+}
+function mChangePassword(uid2){
+  if(!can('superadmin')){toast('Solo el Superadmin puede cambiar contrasenas','error');return;}
+  const u=DB.users.find(x=>x.id===uid2);if(!u)return;
+  showModal('<div class="modal-header"><h2>&#128273; Cambiar contrasena</h2><button class="btn-icon" onclick="closeModal()">&#x2715;</button></div>'
+    +'<div class="modal-body">'
+    +'<div class="alert info">Cambiando contrasena de: <b>'+u.name+'</b> (<code>'+u.username+'</code> / '+u.role+')</div>'
+    +'<div class="field"><label>Nueva contrasena <span style="color:var(--text3);font-weight:400">(min. 6 caracteres)</span></label><input id="np1" type="password" placeholder="Nueva contrasena" autocomplete="new-password"></div>'
+    +'<div class="field"><label>Confirmar contrasena</label><input id="np2" type="password" placeholder="Repetir contrasena" autocomplete="new-password"></div>'
+    +'<div id="cp-err" class="alert error" style="display:none"></div>'
+    +'<div class="modal-footer"><button class="btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn-amber" onclick="doChangePassword(\''+uid2+'\')" id="btn-cpwd">Guardar contrasena</button></div>'
+    +'</div>');
+}
+async function doChangePassword(uid2){
+  if(!can('superadmin')){toast('Sin permisos','error');return;}
+  const u=DB.users.find(x=>x.id===uid2);if(!u)return;
+  const p1=document.getElementById('np1')?.value||'';
+  const p2=document.getElementById('np2')?.value||'';
+  const errEl=document.getElementById('cp-err');
+  const showErr=msg=>{if(errEl){errEl.style.display='block';errEl.textContent=msg;}};
+  if(p1.length<6){showErr('La contrasena debe tener al menos 6 caracteres');return;}
+  if(p1!==p2){showErr('Las contrasenas no coinciden');return;}
+  const btn=document.getElementById('btn-cpwd');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  const newHash=await hashPassword(p1);
+  u.passwordHash=newHash;
+  delete u.password; // por si quedó texto plano de versión anterior
+  save();
+  log('pwd_change','Contrasena cambiada para: '+u.username+' por '+CU.username);
+  closeModal();
+  render();
+  toast('Contrasena actualizada para '+u.name,'success');
 }
 function doInvMove(){
   const iid=document.getElementById('ivm-item')?.value;
