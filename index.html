@@ -3200,7 +3200,7 @@ function cfgUsers(){
       +'<td><span class="badge '+(u.active?'green':'amber')+'">'+(u.active?'Activo':'Inactivo')+'</span></td>'
       +'<td class="flex">'+(u.id!==CU.id?'<button class="btn-secondary btn-xs" onclick="togUser(\''+u.id+'\')">'+(u.active?'Desactivar':'Activar')+'</button>':'')
       +(can('admin')&&u.id!==CU.id&&u.role!=='superadmin'?'<button class="btn-secondary btn-xs" onclick="mEditUserRole(\''+u.id+'\')" title="Cambiar rol">Rol</button>':'')
-      +(can('superadmin')?'<button class="btn-amber btn-xs" onclick="mChangePassword(\\\''+u.id+'\\\')" title="Cambiar contrasena">&#128273; Clave</button>':'')
+      +(can('superadmin')?'<button class="btn-amber btn-xs" data-uid="'+u.id+'" onclick="mChangePassword(this.dataset.uid)" title="Cambiar contrasena">&#128273; Clave</button>':'')
       +'</td></tr>').join('')+'</table></div></div>';}
 function togUser(id){const u=DB.users.find(x=>x.id===id);u.active=!u.active;save();render();}
 function mAddUser(){
@@ -3328,17 +3328,22 @@ function doEditUserRole(uid2){
 function mChangePassword(uid2){
   if(!can('superadmin')){toast('Solo el Superadmin puede cambiar contrasenas','error');return;}
   const u=DB.users.find(x=>x.id===uid2);if(!u)return;
-  showModal('<div class="modal-header"><h2>&#128273; Cambiar contrasena</h2><button class="btn-icon" onclick="closeModal()">&#x2715;</button></div>'
-    +'<div class="modal-body">'
-    +'<div class="alert info">Cambiando contrasena de: <b>'+u.name+'</b> (<code>'+u.username+'</code> / '+u.role+')</div>'
-    +'<div class="field"><label>Nueva contrasena <span style="color:var(--text3);font-weight:400">(min. 6 caracteres)</span></label><input id="np1" type="password" placeholder="Nueva contrasena" autocomplete="new-password"></div>'
-    +'<div class="field"><label>Confirmar contrasena</label><input id="np2" type="password" placeholder="Repetir contrasena" autocomplete="new-password"></div>'
-    +'<div id="cp-err" class="alert error" style="display:none"></div>'
-    +'<div class="modal-footer"><button class="btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn-amber" onclick="doChangePassword(\''+uid2+'\')" id="btn-cpwd">Guardar contrasena</button></div>'
-    +'</div>');
+  // Guardamos el uid en variable global temporal para evitar problemas de escape en onclick
+  window._cpwdUid=uid2;
+  showModal(
+    '<div class="modal-header"><h2>&#128273; Cambiar contrasena</h2><button class="btn-icon" onclick="closeModal()">&#x2715;</button></div>'+
+    '<div class="modal-body">'+
+    '<div class="alert info">Cambiando contrasena de: <b>'+u.name+'</b> ('+u.username+' / '+u.role+')</div>'+
+    '<div class="field"><label>Nueva contrasena <span style="color:var(--text3);font-weight:400">(min. 6 caracteres)</span></label><input id="np1" type="password" placeholder="Nueva contrasena" autocomplete="new-password"></div>'+
+    '<div class="field"><label>Confirmar contrasena</label><input id="np2" type="password" placeholder="Repetir contrasena" autocomplete="new-password"></div>'+
+    '<div id="cp-err" class="alert error" style="display:none"></div>'+
+    '<div class="modal-footer"><button class="btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn-amber" onclick="doChangePassword()" id="btn-cpwd">Guardar contrasena</button></div>'+
+    '</div>'
+  );
 }
-async function doChangePassword(uid2){
+async function doChangePassword(){
   if(!can('superadmin')){toast('Sin permisos','error');return;}
+  const uid2=window._cpwdUid;
   const u=DB.users.find(x=>x.id===uid2);if(!u)return;
   const p1=document.getElementById('np1')?.value||'';
   const p2=document.getElementById('np2')?.value||'';
