@@ -335,7 +335,7 @@ function defaultData(){
       purchases:[],
     },
     reservationSources:['Local','Booking','Expedia','Airbnb','Redes sociales','Referido','Otro'],
-    staffList:['Victor','Administradora','Recepcionista 1','Recepcionista 2'],
+    staffList:[], // Deprecado: usar getStaff() que lee de DB.users activos
     inventory:[
       {id:'i1',name:'Sabanas 1 plaza',categoria:'Blanqueria',ubicacion:'General',stock:0,minStock:0,unit:'unid',lastCostGs:0,avgCostGs:0},
       {id:'i2',name:'Sabanas 2 plazas',categoria:'Blanqueria',ubicacion:'General',stock:0,minStock:0,unit:'unid',lastCostGs:0,avgCostGs:0},
@@ -474,6 +474,8 @@ function save(){
 }
 function log(a,d){DB.auditLog.unshift({id:uid(),ts:new Date().toISOString(),user:CU?.name,role:CU?.role,action:a,detail:d});if(DB.auditLog.length>2000)DB.auditLog=DB.auditLog.slice(0,2000);save();}
 function can(r){return {superadmin:3,admin:2,recepcionista:1}[CU?.role]>={superadmin:3,admin:2,recepcionista:1}[r];}
+// Helper: devuelve lista de nombres de usuarios activos (reemplaza DB.staffList)
+function getStaff(){return DB.users.filter(u=>u.active).map(u=>u.name);}
 function nts(a,b){return Math.max(1,Math.ceil((new Date(b)-new Date(a))/864e5));}
 function bedLbl(bg){if(!bg||!bg.length)return '-';return bg.filter(g=>g.qty>0).map(g=>g.qty+' '+g.type).join(' + ');}
 function bedTot(bg){return (bg||[]).reduce((a,g)=>a+(parseInt(g.qty)||0),0);}
@@ -931,7 +933,7 @@ function mNewRes(preRid){
   const today=todayStr();
   const co=new Date();co.setDate(co.getDate()+1);
   const src=DB.reservationSources||['Local'];
-  const staff=DB.staffList||[];
+  const staff=getStaff();
   const avail=[...DB.rooms].filter(r=>r.status==='free'||r.status==='reserved').sort((a,b)=>a.number.localeCompare(b.number,undefined,{numeric:true}));
   showModal('<div class="modal-header"><h2>Nueva Reserva'+(isSA?' <span class="pill-sa">SUPERADMIN</span>':'')+'</h2><button class="btn-icon" onclick="closeModal()">&#x2715;</button></div>'
     +'<div class="modal-body">'
@@ -1003,7 +1005,7 @@ function mCheckin(preRid){
   const today=todayStr();
   const co=new Date();co.setDate(co.getDate()+1);
   const src=DB.reservationSources||['Local'];
-  const staff=DB.staffList||[];
+  const staff=getStaff();
   // rooms: free or reserved
   const avail=[...DB.rooms].filter(r=>r.status==='free'||r.status==='reserved').sort((a,b)=>a.number.localeCompare(b.number,undefined,{numeric:true}));
   if(!avail.length){toast('No hay habitaciones disponibles','error');return;}
@@ -2596,7 +2598,7 @@ function mManualPay(){
   showModal('<div class="modal-header"><h2>Cobro manual</h2><button class="btn-icon" onclick="closeModal()">&#x2715;</button></div>'
     +'<div class="modal-body"><div class="field"><label>Concepto</label><input id="pcon" type="text" placeholder="Descripcion"></div>'
     +'<div class="field-row"><div class="field"><label>Monto (Gs.)</label><input id="pamt" type="number" step="1000" placeholder="0"></div><div class="field"><label>Metodo</label><select id="pmth">'+PAY_METHODS.map(m=>'<option>'+m+'</option>').join('')+'</select></div></div>'
-    +'<div class="field"><label>Responsable</label><select id="pstf"><option value="">Sin asignar</option>'+(DB.staffList||[]).map(s=>'<option>'+s+'</option>').join('')+'</select></div>'
+    +'<div class="field"><label>Responsable</label><select id="pstf"><option value="">Sin asignar</option>'+getStaff().map(s=>'<option>'+s+'</option>').join('')+'</select></div>'
     +'<div class="modal-footer"><button class="btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="doManualPay()">Registrar</button></div></div>');
 }
 function doManualPay(){const concept=document.getElementById('pcon').value.trim();const amount=parseInt(document.getElementById('pamt').value)||0;const method=document.getElementById('pmth').value;const staffResp=document.getElementById('pstf').value;if(!concept||!amount){toast('Completa todos los campos','error');return;}if(!DB.cajaActual){toast('Debe abrir una caja antes de cobrar','error');return;}DB.payments.push({id:uid(),concept,amountGs:amount,currency:'PYG',method,staffResp,cajaId:DB.cajaActual?.id||null,date:new Date().toISOString(),createdBy:CU.id,manual:true});save();log('pay_manual','Cobro: '+concept);closeModal();render();toast('Registrado','success');}
@@ -3172,18 +3174,18 @@ function cfgSvcs(){
 function addSvc(){const name=document.getElementById('svn').value.trim();const priceGs=parseInt(document.getElementById('svp').value)||0;const category=document.getElementById('svc').value;if(!name||!priceGs){toast('Completa campos','error');return;}DB.services.push({id:uid(),name,priceGs,category});save();render();toast('Agregado','success');}
 function delSvc(id){DB.services=DB.services.filter(s=>s.id!==id);save();render();}
 function cfgOrigenes(){
-  const src=DB.reservationSources||[];const staff=DB.staffList||[];
+  const src=DB.reservationSources||[];
   return '<div class="grid2">'
     +'<div class="card"><div class="card-title mb12">Origenes de reserva</div>'
     +'<div class="table-wrap" style="margin-bottom:12px"><table><tr><th>Origen</th><th></th></tr>'+src.map((s,i)=>'<tr><td>'+s+'</td><td><button class="btn-danger btn-xs" onclick="delSrc('+i+')">&#x2715;</button></td></tr>').join('')+'</table></div>'
-    +'<div class="field-row"><div class="field"><label>Nuevo</label><input id="nsrc" type="text" placeholder="Ej: TripAdvisor"></div><div class="field" style="display:flex;align-items:flex-end"><button class="btn-primary" onclick="addSrc()">Agregar</button></div></div></div>'
-    +'<div class="card"><div class="card-title mb12">Recepcionistas responsables</div>'
-    +'<div class="alert info mb8" style="font-size:11px">Lista independiente de los usuarios del sistema. Se asigna en check-ins, consumiciones y cobros para reportes.</div>'
-    +'<div class="table-wrap" style="margin-bottom:12px"><table><tr><th>Nombre</th><th></th></tr>'+staff.map((s,i)=>'<tr><td>'+s+'</td><td><button class="btn-danger btn-xs" onclick="delStaff('+i+')">&#x2715;</button></td></tr>').join('')+'</table></div>'
-    +'<div class="field-row"><div class="field"><label>Nuevo</label><input id="nstaff" type="text" placeholder="Ej: Maria Lopez"></div><div class="field" style="display:flex;align-items:flex-end"><button class="btn-primary" onclick="addStaff()">Agregar</button></div></div></div>'
+    +'<div class="field-row"><div class="field"><label>Nuevo origen</label><input id="nsrc" type="text" placeholder="Ej: TripAdvisor"></div><div class="field" style="display:flex;align-items:flex-end"><button class="btn-primary" onclick="addSrc()">Agregar</button></div></div></div>'
+    +'<div class="card"><div class="card-title mb12">Responsables del sistema</div>'
+    +'<div class="alert success mb8" style="font-size:11px">&#9989; Esta lista se genera automaticamente desde los <b>usuarios activos</b>. Para agregar o quitar responsables, gestionalo en la pestana <b>Usuarios</b>.</div>'
+    +'<div class="table-wrap"><table><tr><th>Nombre</th><th>Rol</th></tr>'
+    +DB.users.filter(u=>u.active).map(u=>'<tr><td class="bold">'+u.name+'</td><td><span class="badge '+(u.role==="superadmin"?"red":u.role==="admin"?"blue":"green")+'">'+({superadmin:'Superadmin',admin:'Admin',recepcionista:'Recepcionista'}[u.role]||u.role)+'</span></td></tr>').join('')
+    +'</table></div></div>'
     +'</div>';
 }
-function addSrc(){const val=document.getElementById('nsrc').value.trim();if(!val)return;if(!DB.reservationSources)DB.reservationSources=[];DB.reservationSources.push(val);save();render();toast('Agregado','success');}
 function delSrc(idx){DB.reservationSources.splice(idx,1);save();render();}
 function addStaff(){const val=document.getElementById('nstaff').value.trim();if(!val)return;if(!DB.staffList)DB.staffList=[];DB.staffList.push(val);save();render();toast('Agregado','success');}
 function delStaff(idx){DB.staffList.splice(idx,1);save();render();}
@@ -4997,7 +4999,7 @@ function doCobrarHab(ciId,roomNum){
 
 function mAsignarLimpieza(roomId){
   const room=DB.rooms.find(r=>r.id===roomId);if(!room)return;
-  const staff=DB.staffList||[];
+  const staff=getStaff();
   showModal('<div class="modal-header"><h2>&#129529; Asignar limpieza — Hab. '+room.number+'</h2>'
     +'<button class="btn-icon" onclick="closeModal()">&#x2715;</button></div>'
     +'<div class="modal-body">'
