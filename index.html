@@ -1163,9 +1163,7 @@ function mViewRes(ciId){
     +(ci.obs?'<div class="alert warning" style="margin-top:8px">Obs: '+ci.obs+'</div>':'')
     +'<div class="modal-footer">'
     +(can('admin')?'<button class="btn-danger btn-sm" onclick="cancelRes(\''+ciId+'\')">Cancelar reserva</button>':'')
-    +'<button class="btn-secondary" onclick="mEditResData(\''+ciId+'\')">&#9998; Editar datos</button>'
-    +'<button class="btn-secondary" onclick="closeModal()">Cerrar</button>'
-    +'<button class="btn-primary" onclick="mConfirmCheckin(\''+ciId+'\')">Confirmar Check-In</button>'
+    +'<button class="btn-secondary" onclick="mEditResData(\''+ciId+'\')">&#9998; Editar datos</button>'    +'<button class="btn-secondary" onclick="closeModal()">Cerrar</button>'    +((!ci.guestDoc||ci.guestDoc==='-'||!ci.guestEmail||ci.guestEmail==='-')?      '<div style="width:100%"><div class="alert warning" style="font-size:11px;margin:4px 0 0">&#9888; Complete el <b>documento</b> y <b>correo</b> del huesped en &ldquo;Editar datos&rdquo; antes de confirmar el check-in.</div></div>'      +'<button class="btn-primary" disabled style="opacity:0.4;cursor:not-allowed">Confirmar Check-In</button>':      '<button class="btn-primary" onclick="mConfirmCheckin(\''+ciId+'\')">Confirmar Check-In</button>')
     +'</div></div>',true);
 }
 function mConfirmCheckin(ciId){
@@ -1198,8 +1196,7 @@ function mConfirmCheckin(ciId){
 function doConfirmCheckin(ciId,cajeroResp){
   const ci=DB.checkins.find(x=>x.id===ciId);if(!ci)return;
   const room=DB.rooms.find(r=>r.id===ci.roomId);if(!room)return;
-  const method=document.getElementById('ccm')?.value||'Efectivo Gs.';
-  const paidAmt=parseInt(document.getElementById('ccamt')?.value)||0;
+  // Pagos procesados desde window._ciPagos (múltiples métodos)
   // Confirmar check-in
   ci.checkedIn=true;ci.checkinDate=new Date().toISOString();if(cajeroResp)ci.staffResp=cajeroResp;
   room.status='occupied';room.currentGuest=ci.guestName;room.checkIn=ci.checkIn;room.checkOut=ci.checkOut;
@@ -5062,7 +5059,7 @@ function doAsignarLimpieza(){
   const roomId=window._cleanRid;
   const room=DB.rooms.find(r=>r.id===roomId);if(!room)return;
   const nombre=_getNombreLimpieza();
-  if(!nombre){toast('Ingresa o selecciona el personal de limpieza','error');return;}
+  if(!nombre||nombre.trim().length<2){toast('&#9888; Debes ingresar el nombre de la mucama','error');return;}
   room.cleaningBy=nombre;
   room.dirty=true;
   save();log('limpieza_asignada','Hab. '+room.number+' asignada a '+nombre);
@@ -5071,7 +5068,8 @@ function doAsignarLimpieza(){
 function doMarcarLimpia(){
   const roomId=window._cleanRid;
   const room=DB.rooms.find(r=>r.id===roomId);if(!room)return;
-  const nombre=_getNombreLimpieza()||(room.cleaningBy||CU.name);
+  const nombre=_getNombreLimpieza()||(room.cleaningBy||'');
+  if(!nombre||nombre.trim().length<2){toast('&#9888; Debes ingresar el nombre de la mucama antes de marcar como limpia','error');return;}
   const ts=new Date().toISOString();
   if(!room.cleaningLog)room.cleaningLog=[];
   room.cleaningLog.unshift({nombre,ts,registradoPor:CU.name});
