@@ -1148,7 +1148,15 @@ function mViewRes(ciId){
     +'</div>'
     +'<div class="field-row" style="margin-bottom:6px">'
     +'<div><div class="xs">Telefono</div><div>'+(ci.guestTel||'-')+'</div></div>'
+    +'<div><div class="xs">Email</div><div>'+(ci.guestEmail||'-')+'</div></div>'
+    +'</div>'
+    +(ci.direccion||ci.reservadoPor?'<div class="field-row" style="margin-bottom:6px">'
+    +(ci.reservadoPor?'<div><div class="xs">Reservado por</div><div class="xs">'+ci.reservadoPor+'</div></div>':'<div></div>')
+    +(ci.direccion?'<div><div class="xs">Dirección</div><div class="xs">'+ci.direccion+'</div></div>':'<div></div>')
+    +'</div>':'')
+    +'<div class="field-row" style="margin-bottom:6px">'
     +'<div><div class="xs">Chapa vehiculo</div><div>'+(ci.vehiclePlate||'-')+'</div></div>'
+    +'<div></div>'
     +'</div>'
     +'<div class="divider"></div>'
     +'<div class="sec-title">Estadia</div>'
@@ -1348,8 +1356,18 @@ function mEditResData(ciId){
     +'</div>'
     +'<div class="alert warning" style="margin-bottom:10px;font-size:11px">Responsable asignado: <b>'+cajeroResp+'</b>'+(DB.cajaActual?' (caja N°'+DB.cajaActual.numero+' abierta)':' (sin caja abierta)')+'</div>'
     +'<div class="divider"></div>'
-    +'<div class="field-row"><div class="field"><label>Nro. Documento (CI / Pasaporte)</label><input id="erd-doc" type="text" value="'+(ci.guestDoc||'')+'"></div><div class="field"><label>Telefono / Celular</label><input id="erd-tel" type="text" value="'+(ci.guestTel||'')+'"></div></div>'
-    +'<div class="field-row"><div class="field"><label>Chapa del vehiculo</label><input id="erd-vp" type="text" value="'+(ci.vehiclePlate||'')+'"></div><div class="field"><label>Correo electronico</label><input id="erd-email" type="email" value="'+(ci.guestEmail||'')+'"></div></div>'
+    +'<div class="field-row"><div class="field"><label>Nro. Documento (CI / Pasaporte) <span style="color:var(--red)">*</span></label><input id="erd-doc" type="text" value="'+(ci.guestDoc||'')+'"></div>'
+    +(ci.bookingNro?
+      '<div class="field"><label>Telefono <span class="xs muted">(bloqueado — viene de Booking)</span></label><input type="text" value="'+(ci.guestTel||'Sin datos en Booking')+'" disabled style="opacity:0.5"></div>':
+      '<div class="field"><label>Telefono / Celular</label><input id="erd-tel" type="text" value="'+(ci.guestTel||'')+'"></div>')
+    +'</div>'
+    +'<div class="field-row">'
+    +'<div class="field"><label>Chapa del vehiculo</label><input id="erd-vp" type="text" value="'+(ci.vehiclePlate||'')+'"></div>'
+    +(ci.bookingNro?
+      '<div class="field"><label>Email <span class="xs muted">(bloqueado — viene de Booking)</span></label><input type="email" value="'+(ci.guestEmail||'Sin datos en Booking')+'" disabled style="opacity:0.5"></div>':
+      '<div class="field"><label>Correo electronico</label><input id="erd-email" type="email" value="'+(ci.guestEmail||'')+'"></div>')
+    +'</div>'
+    +(ci.bookingNro?'<div class="alert info" style="font-size:11px">&#128274; Booking no exporta email ni documento en su reporte. Completá el <b>documento</b> manualmente y el email si lo tenés disponible.</div>':'')
     +'<div class="field"><label>Observaciones</label><textarea id="erd-obs" rows="2">'+(ci.obs||'')+'</textarea></div>'
     +'<div class="modal-footer"><button class="btn-secondary" onclick="mViewRes(\''+ciId+'\')">&#8592; Volver</button><button class="btn-primary" onclick="doEditResData(\''+ciId+'\',\''+cajeroResp+'\')">Guardar datos</button></div>'
     +'</div>',true);
@@ -1357,9 +1375,9 @@ function mEditResData(ciId){
 function doEditResData(ciId,cajeroResp){
   const ci=DB.checkins.find(x=>x.id===ciId);if(!ci)return;
   ci.guestDoc=document.getElementById('erd-doc').value.trim();
-  ci.guestTel=document.getElementById('erd-tel').value.trim();
+  if(document.getElementById('erd-tel'))ci.guestTel=document.getElementById('erd-tel').value.trim();
   ci.vehiclePlate=document.getElementById('erd-vp').value.trim().toUpperCase();
-  ci.guestEmail=document.getElementById('erd-email').value.trim();
+  if(document.getElementById('erd-email'))ci.guestEmail=document.getElementById('erd-email').value.trim();
   ci.obs=document.getElementById('erd-obs').value.trim();
   ci.staffResp=cajeroResp;
   save();log('edit_res','Datos editados reserva hab '+ci.roomNumber+' - '+ci.guestName);
@@ -4887,13 +4905,18 @@ function doImportarBookingXLS(){
       const cTipo=col('tipo de unidad');
       const cPax=col('adultos');
       const cNinos=col('niños');
+      const cPersonas=col('personas');
       const cPais=col('booker country');
       const cTel=col('número de teléfono');
-      const cEmail=col('email');
-      const cDoc=col('documento')>-1?col('documento'):col('passport')>-1?col('passport'):col('id number')>-1?col('id number'):-1;
+      const cDir=col('dirección');
+      const cEstPago=col('estado del pago');
+      const cMetPago=col('método de pago');
       const cMotivo=col('motivo del viaje');
       const cComentario=col('comentarios');
       const cNroReserva=col('número de reserva');
+      const cReservadoPor=col('reservado por');
+      const cEdadNinos=col('edades de los niños');
+      const cFechaRes=col('fecha de reserva');
       if(cNom<0||cIn<0||cOut<0){toast('Formato de archivo no reconocido. ¿Es el archivo de Booking?','error');return;}
       let importadas=0,canceladas=0,omitidas=0,errores=0;
       const resultados=[];
@@ -4943,9 +4966,14 @@ function doImportarBookingXLS(){
         const adultos=parseInt(row[cPax])||1;
         const ninos=parseInt(row[cNinos])||0;
         const pais=String(row[cPais]||'').toUpperCase();
-        const tel=String(row[cTel]||'').trim();
-        const email=cEmail>=0?String(row[cEmail]||'').trim():'';
-        const doc=cDoc>=0?String(row[cDoc]||'').trim():'';
+        const tel=cTel>=0&&row[cTel]&&String(row[cTel])!=='nan'?String(row[cTel]).trim():'';
+        const dir=cDir>=0&&row[cDir]&&String(row[cDir])!=='nan'?String(row[cDir]).trim():'';
+        const estPago=cEstPago>=0&&row[cEstPago]&&String(row[cEstPago])!=='nan'?String(row[cEstPago]).trim():'';
+        const metPago=cMetPago>=0&&row[cMetPago]&&String(row[cMetPago])!=='nan'?String(row[cMetPago]).trim():'';
+        const reservadoPor=cReservadoPor>=0&&row[cReservadoPor]&&String(row[cReservadoPor])!=='nan'?String(row[cReservadoPor]).trim():'';
+        const edadNinos=cEdadNinos>=0&&row[cEdadNinos]&&String(row[cEdadNinos])!=='nan'?String(row[cEdadNinos]).trim():'';
+        const totalPersonas=cPersonas>=0?parseInt(row[cPersonas])||0:adultos+ninos;
+        // Nota: Booking NO exporta email ni documento en este formato de reporte
         const motivo=String(row[cMotivo]||'').trim();
         const comentario=String(row[cComentario]||'').trim();
         const nroReserva=String(row[cNroReserva]||'').replace('.0','').trim();
@@ -4955,9 +4983,9 @@ function doImportarBookingXLS(){
         const ciExistente=nroReserva?DB.checkins.find(ci=>ci.bookingNro===nroReserva):null;
         if(ciExistente){
           let actualizado=false;
-          if(!ciExistente.guestDoc&&doc){ciExistente.guestDoc=doc;actualizado=true;}
-          if(!ciExistente.guestEmail&&email){ciExistente.guestEmail=email;actualizado=true;}
           if(!ciExistente.guestTel&&tel){ciExistente.guestTel=tel;actualizado=true;}
+          if(!ciExistente.direccion&&dir){ciExistente.direccion=dir;actualizado=true;}
+          if(!ciExistente.reservadoPor&&reservadoPor){ciExistente.reservadoPor=reservadoPor;actualizado=true;}
           if(!ciExistente.adultos&&adultos){ciExistente.adultos=adultos;actualizado=true;}
           if(!ciExistente.ninos&&ninos){ciExistente.ninos=ninos;actualizado=true;}
           if(!ciExistente.paisOrigen&&pais){ciExistente.paisOrigen=pais;actualizado=true;}
@@ -5003,9 +5031,14 @@ function doImportarBookingXLS(){
           roomId:roomMatch.id,
           roomNumber:roomMatch.number,
           guestName:nombre,
-          guestDoc:doc,
+          guestDoc:'',
           guestTel:tel,
-          guestEmail:email,
+          guestEmail:'',
+          direccion:dir,
+          reservadoPor,
+          edadNinos,
+          totalPersonas:totalPersonas||adultos+ninos,
+          estPago,metPago,
           checkIn,checkOut,
           nights:noches,
           pricePerNightGs:noches>0?Math.round(precioGs/noches):precioGs,
