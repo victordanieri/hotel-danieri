@@ -18,6 +18,7 @@
   --teal:#38bdf8;--tealbg:#0d2233;
   --radius:8px;--radius2:12px;
   --res:#0d1f3c;--res-b:#2563eb;--res-t:#60a5fa;
+  --res-paid:#0d2e1a;--res-paid-b:#16a34a;--res-paid-t:#4ade80;
   --ci:#2b1800;--ci-b:#d97706;--ci-t:#fbbf24;
   --cip:#0a2218;--cip-b:#16a34a;--cip-t:#4ade80;
   --co-c:#1c1c22;--co-b:#4b5563;--co-t:#9ca3af;
@@ -84,6 +85,7 @@ label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px}
 .room-card.debt{border-color:var(--amber)!important;border-width:2px!important;background:var(--amberbg)!important}
 .room-card.checkin_hoy{border-color:#4a90d9!important;background:#1a3a5c!important;border-width:2px!important}
 .room-card.reserved{border-color:var(--res-b);background:var(--res)}
+.room-card.reserved.paid-advance{border-color:var(--res-paid-b)!important;background:var(--res-paid)!important}
 .room-card.dirty{border-color:var(--amberborder);background:var(--amberbg)}
 .room-card.closed{border-color:var(--cl-b);background:var(--cl-c)}
 .room-card.free{border-color:var(--greenborder);background:var(--greenbg)}
@@ -164,6 +166,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .b{display:block;position:absolute;top:2px;bottom:2px;z-index:1;cursor:pointer}
 .b:hover{filter:brightness(1.3)}
 .b.res{background:var(--res);border:1px solid var(--res-b)}
+.b.res.paid-adv{background:var(--res-paid);border:1px solid var(--res-paid-b)}
 .b.ci{background:var(--ci);border:1px solid var(--ci-b)}
 .b.cip{background:var(--cip);border:1px solid var(--cip-b)}
 .b.co{background:var(--co-c);border:1px solid var(--co-b)}
@@ -668,6 +671,7 @@ function renderCalendar(){
   html+='</tbody></table></div>';
   html+='<div class="cal-legend">'
     +'<div class="leg"><span class="lsq" style="background:var(--res);border-color:var(--res-b)"></span>Reserva</div>'
+    +'<div class="leg"><span class="lsq" style="background:var(--res-paid);border-color:var(--res-paid-b)"></span>Reserva pagada</div>'
     +'<div class="leg"><span class="lsq" style="background:var(--ci);border-color:var(--ci-b)"></span>Check-in (con deuda)</div>'
     +'<div class="leg"><span class="lsq" style="background:var(--cip);border-color:var(--cip-b)"></span>Check-in (pagado)</div>'
     +'<div class="leg"><span class="lsq" style="background:var(--co-c);border-color:var(--co-b)"></span>Check-out</div>'
@@ -1153,6 +1157,11 @@ function mViewRes(ciId){
     +'<div><div class="xs">Salida</div><div class="bold">'+fd(ci.checkOut)+'</div></div>'
     +'<div><div class="xs">Noches</div><div class="bold">'+n+'</div></div>'
     +'</div>'
+    +((ci.adultos||ci.ninos)?'<div class="field-row" style="margin-bottom:6px">'
+    +'<div><div class="xs">Adultos</div><div class="bold">'+(ci.adultos||1)+'</div></div>'
+    +'<div><div class="xs">Niños</div><div class="bold">'+(ci.ninos||0)+'</div></div>'
+    +'<div><div class="xs">Total pax</div><div class="bold c-amber">'+(( ci.adultos||1)+(ci.ninos||0))+'</div></div>'
+    +'</div>':'')
     +'<div class="field-row" style="margin-bottom:6px">'
     +'<div><div class="xs">Origen</div><div><span class="tag">'+(ci.source||'Sin origen')+'</span></div></div>'
     +'<div><div class="xs">Responsable</div><div><span class="tag">'+(ci.staffResp||'Sin asignar')+'</span></div></div>'
@@ -1165,6 +1174,73 @@ function mViewRes(ciId){
     +(can('admin')?'<button class="btn-danger btn-sm" onclick="cancelRes(\''+ciId+'\')">Cancelar reserva</button>':'')
     +'<button class="btn-secondary" onclick="mEditResData(\''+ciId+'\')">&#9998; Editar datos</button>'    +'<button class="btn-secondary" onclick="closeModal()">Cerrar</button>'    +((!ci.guestDoc||ci.guestDoc==='-'||!ci.guestEmail||ci.guestEmail==='-')?      '<div style="width:100%"><div class="alert warning" style="font-size:11px;margin:4px 0 0">&#9888; Complete el <b>documento</b> y <b>correo</b> del huesped en &ldquo;Editar datos&rdquo; antes de confirmar el check-in.</div></div>'      +'<button class="btn-primary" disabled style="opacity:0.4;cursor:not-allowed">Confirmar Check-In</button>':      '<button class="btn-primary" onclick="mConfirmCheckin(\''+ciId+'\')">Confirmar Check-In</button>')
     +'</div></div>',true);
+}
+function mCobrarAnticipado(ciId){
+  const ci=DB.checkins.find(x=>x.id===ciId);if(!ci)return;
+  if(!window._ciPagosId||window._ciPagosId!==ciId){window._ciPagos=[];window._ciPagosId=ciId;}
+  const totalGs=ci.totalRoomGs||0;
+  const pagos=window._ciPagos||[];
+  const totalPagado=pagos.reduce((a,p)=>a+p.monto,0);
+  const saldo=totalGs-totalPagado;
+  const completo=totalPagado>=totalGs&&totalGs>0;
+  const pagosHtml=pagos.length>0
+    ?'<div class="table-wrap" style="margin:6px 0"><table><tr><th>Metodo</th><th class="right">Monto</th><th></th></tr>'
+     +pagos.map((p,i)=>'<tr><td>'+p.metodo+'</td><td class="right bold c-green">'+fmtGs(p.monto)+'</td>'
+     +'<td><button class="btn-xs btn-danger" onclick="window._ciPagos.splice('+i+',1);mCobrarAnticipado(\''+ciId+'\')">&#x2715;</button></td></tr>').join('')
+     +'</table></div>':'';
+  showModal(
+    '<div class="modal-header"><h2>&#128176; Cobro anticipado — Reserva Hab. '+ci.roomNumber+'</h2><button class="btn-icon" onclick="closeModal()">&#x2715;</button></div>'
+    +'<div class="modal-body">'
+    +'<div class="alert info" style="margin-bottom:10px">Registra el pago de la reserva antes del check-in. La reserva quedara marcada como <b>pagada</b> en verde.</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:10px">'
+    +'<div><div class="xs">Total</div><div class="bold c-amber">'+fmtGs(totalGs)+'</div></div>'
+    +'<div><div class="xs">Cobrado</div><div class="bold c-green">'+fmtGs(totalPagado)+'</div></div>'
+    +'<div><div class="xs">Saldo</div><div class="bold" style="color:'+(saldo>0?'var(--red)':'var(--green)')+'">'+fmtGs(Math.max(0,saldo))+'</div></div>'
+    +'</div>'
+    +pagosHtml
+    +'<div class="field-row" style="align-items:flex-end">'
+    +'<div class="field"><label>Metodo</label><select id="adv-met">'+PAY_METHODS.map(m=>'<option>'+m+'</option>').join('')+'</select></div>'
+    +'<div class="field"><label>Monto (Gs.)</label><input id="adv-amt" type="number" step="1000" min="1" value="'+Math.max(0,saldo)+'"></div>'
+    +'<div class="field"><button class="btn-secondary" style="width:100%;margin-top:20px" onclick="addPagoAnticipado(\''+ciId+'\')">+ Agregar</button></div>'
+    +'</div>'
+    +'<div class="modal-footer">'
+    +'<button class="btn-secondary" onclick="window._ciPagos=[];window._ciPagosId=null;mViewRes(\''+ciId+'\')">&#8592; Volver</button>'
+    +(completo
+      ?'<button class="btn-success" onclick="doConfirmCobrarAnticipado(\''+ciId+'\')">&#10003; Confirmar cobro anticipado</button>'
+      :'<button class="btn-success" disabled style="opacity:0.35;cursor:not-allowed">&#10003; Confirmar cobro anticipado</button>')
+    +'</div></div>');
+}
+function addPagoAnticipado(ciId){
+  const ci=DB.checkins.find(x=>x.id===ciId);if(!ci)return;
+  const monto=parseInt(document.getElementById('adv-amt')?.value)||0;
+  const metodo=document.getElementById('adv-met')?.value;
+  const totalGs=ci.totalRoomGs||0;
+  const pagos=window._ciPagos||[];
+  const totalPagado=pagos.reduce((a,p)=>a+p.monto,0);
+  const saldo=totalGs-totalPagado;
+  if(monto<=0){toast('Ingresa un monto mayor a cero','error');return;}
+  if(monto>saldo){toast('El monto supera el saldo pendiente ('+fmtGs(saldo)+')','error');return;}
+  if(!window._ciPagos)window._ciPagos=[];
+  window._ciPagos.push({metodo,monto});
+  mCobrarAnticipado(ciId);
+}
+function doConfirmCobrarAnticipado(ciId){
+  const ci=DB.checkins.find(x=>x.id===ciId);if(!ci)return;
+  const pagos=window._ciPagos||[];
+  const totalPagado=pagos.reduce((a,p)=>a+p.monto,0);
+  if(totalPagado<(ci.totalRoomGs||0)){toast('El pago no cubre el total','error');return;}
+  // Crear cargo de habitación si no existe
+  const existCh=DB.charges.find(c=>c.checkinId===ci.id&&c.category==='habitacion');
+  if(!existCh&&ci.totalRoomGs>0)DB.charges.push({id:uid(),checkinId:ci.id,roomId:ci.roomId,concept:'Anticipado Hab.'+ci.roomNumber+' - '+ci.guestName,amountGs:ci.totalRoomGs,date:new Date().toISOString(),paid:false,category:'habitacion',createdBy:CU.id});
+  // Marcar como pagado
+  DB.charges.filter(c=>c.checkinId===ci.id&&!c.paid&&!c.cancelled).forEach(c=>{c.paid=true;c.paidAt=new Date().toISOString();c.paidMethod=pagos.map(p=>p.metodo).join('+');});
+  pagos.forEach(p=>{
+    DB.payments.push({id:uid(),checkinId:ci.id,concept:'Anticipo Hab.'+ci.roomNumber+' - '+ci.guestName,amountGs:p.monto,currency:'PYG',method:p.metodo,staffResp:CU.name,cajaId:DB.cajaActual?.id||null,date:new Date().toISOString(),createdBy:CU.id});
+  });
+  ci.paidInAdvance=true;
+  window._ciPagos=[];window._ciPagosId=null;
+  save();log('cobro_anticipado','Anticipo cobrado: Hab.'+ci.roomNumber+' - '+ci.guestName);
+  closeModal();render();toast('&#10003; Cobro anticipado registrado. Reserva marcada como pagada.','success');
 }
 function mConfirmCheckin(ciId){
   if(!window._ciPagosId||window._ciPagosId!==ciId){window._ciPagos=[];window._ciPagosId=ciId;}
@@ -1193,6 +1269,10 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
     +'<div><div class="xs">Doc.</div><div class="bold">'+(ci.guestDoc||'-')+'</div></div>'
     +'<div><div class="xs">Noches</div><div class="bold">'+n+'</div></div>'
     +'<div><div class="xs">Total hab.</div><div class="bold c-amber">'+fmtGs(totalGs)+'</div></div>'
+    +'</div>'
+    +((ci.adultos||ci.ninos)?'<div style="padding:6px 10px;background:var(--surface2);border-radius:6px;margin-bottom:8px;font-size:12px">'
+    +'&#128100; <b>'+(ci.adultos||1)+' adulto(s)</b>'+(ci.ninos?' + <b>'+ci.ninos+' niño(s)</b>':'')+'  —  Verificar al check-in que no ingresen más personas que las declaradas.'
+    +'</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0">
     +'</div>'
     +'<div class="sec-title" style="margin-bottom:6px">Pagos registrados</div>'
     +pagosHtml
@@ -1225,7 +1305,9 @@ function addPagoCI(ciId,cajeroResp){
   const totalGs=ci?ci.totalRoomGs||0:0;
   const pagos=window._ciPagos||[];
   const totalPagado=pagos.reduce((a,p)=>a+p.monto,0);
-  if(totalPagado+monto>totalGs*1.01){toast('El monto supera el total de la reserva ('+fmtGs(totalGs)+')','error');return;}
+  const saldoActual=totalGs-totalPagado;
+  if(monto>saldoActual){toast('El monto ('+fmtGs(monto)+') supera el saldo pendiente ('+fmtGs(saldoActual)+')','error');return;}
+  if(monto<=0){toast('El monto debe ser mayor a cero','error');return;}
   if(!window._ciPagos)window._ciPagos=[];
   window._ciPagos.push({metodo,monto});
   renderConfirmCheckinModal(ciId,cajeroResp);
@@ -4810,6 +4892,8 @@ function doImportarBookingXLS(){
       const cNinos=col('niños');
       const cPais=col('booker country');
       const cTel=col('número de teléfono');
+      const cEmail=col('email');
+      const cDoc=col('documento')>-1?col('documento'):col('passport')>-1?col('passport'):col('id number')>-1?col('id number'):-1;
       const cMotivo=col('motivo del viaje');
       const cComentario=col('comentarios');
       const cNroReserva=col('número de reserva');
@@ -4863,6 +4947,8 @@ function doImportarBookingXLS(){
         const ninos=parseInt(row[cNinos])||0;
         const pais=String(row[cPais]||'').toUpperCase();
         const tel=String(row[cTel]||'').trim();
+        const email=cEmail>=0?String(row[cEmail]||'').trim():'';
+        const doc=cDoc>=0?String(row[cDoc]||'').trim():'';
         const motivo=String(row[cMotivo]||'').trim();
         const comentario=String(row[cComentario]||'').trim();
         const nroReserva=String(row[cNroReserva]||'').replace('.0','').trim();
@@ -4907,9 +4993,9 @@ function doImportarBookingXLS(){
           roomId:roomMatch.id,
           roomNumber:roomMatch.number,
           guestName:nombre,
-          guestDoc:'',
+          guestDoc:doc,
           guestTel:tel,
-          guestEmail:'',
+          guestEmail:email,
           checkIn,checkOut,
           nights:noches,
           pricePerNightGs:noches>0?Math.round(precioGs/noches):precioGs,
