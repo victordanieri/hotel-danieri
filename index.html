@@ -732,8 +732,10 @@ function renderDash(){
   // Cobrado hoy = solo pagos de la caja activa (o del día si no hay caja)
   const tp=DB.cajaActual?DB.payments.filter(p=>p.cajaId===DB.cajaActual.id):DB.payments.filter(p=>p.date&&p.date.startsWith(d));
   const hGs=tp.reduce((a,p)=>a+(p.amountGs||0),0);
-  // Pendiente de cobro TOTAL (arrastrado entre cajas)
-  const pendGs=DB.charges.filter(c=>!c.paid&&!c.cancelled).reduce((a,c)=>a+(c.amountGs||0),0);
+  // Pendiente de cobro REAL — solo de check-ins ya finalizados (checked_out) sin cobrar
+  // Las charges de check-ins activos se cobran al checkout, no son "deuda"
+  const activeCheckinIds=new Set(DB.checkins.filter(c=>c.status==='active'&&c.checkedIn).map(c=>c.id));
+  const pendGs=DB.charges.filter(c=>!c.paid&&!c.cancelled&&!activeCheckinIds.has(c.checkinId)).reduce((a,c)=>a+(c.amountGs||0),0);
   const low=(DB.inventory||[]).filter(i=>(i.stock||0)<=(i.minStock||0));
 
   // Reservas próximas
@@ -745,7 +747,7 @@ function renderDash(){
   let al='';
   if(dirty>0)al+='<div class="alert warning">&#9889; '+dirty+' habitacion(es) pendiente(s) de limpieza</div>';
   if(low.length>0)al+='<div class="alert warning">&#9888; '+low.length+' item(s) de blanqueria con stock bajo</div>';
-  if(pendGs>0)al+='<div class="alert info">&#128176; '+fmtGs(pendGs)+' pendiente de cobro</div>';
+  if(pendGs>0)al+='<div class="alert error">&#9888; Deuda sin cobrar: '+fmtGs(pendGs)+'</div>';
 
   return '<div class="flex-b mb12"><div class="sec-title" style="margin:0">Resumen del dia - '+fd(d)+'</div>'
     +'<span class="xs" style="color:var(--text3)">Datos del dia actual unicamente</span></div>'
@@ -757,7 +759,7 @@ function renderDash(){
     +'<div class="kpi green"><div class="kpi-label">Libres</div><div class="kpi-value">'+free+'</div></div>'
     +'<div class="kpi amber"><div class="kpi-label">Pend. de Aseo</div><div class="kpi-value">'+dirty+'</div></div>'
     +'<div class="kpi"><div class="kpi-label">Cobrado hoy</div><div class="kpi-value c-green" style="font-size:14px">'+fmtGs(hGs)+'</div></div>'
-    +(pendGs>0?'<div class="kpi red"><div class="kpi-label">&#9888; Pend. cobro</div><div class="kpi-value" style="font-size:14px">'+fmtGs(pendGs)+'</div></div>':'<div class="kpi green"><div class="kpi-label">Pend. cobro</div><div class="kpi-value" style="font-size:14px">Gs. 0</div></div>')
+    +(pendGs>0?'<div class="kpi red"><div class="kpi-label">&#9888; Pend. cobro</div><div class="kpi-value" style="font-size:14px">'+fmtGs(pendGs)+'</div></div>':'<div class="kpi"><div class="kpi-label">Pend. cobro</div><div class="kpi-value" style="color:var(--text3);font-size:14px">Gs. 0</div></div>')
     +'</div>'
 
     // Calendario FULL WIDTH
