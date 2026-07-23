@@ -4954,8 +4954,21 @@ function doImportarBookingXLS(){
         const nroReserva=String(row[cNroReserva]||'').replace('.0','').trim();
         if(!nombre||!checkIn||!checkOut){errores++;continue;}
         // Verificar si ya existe esta reserva de Booking
-        const existe=DB.checkins.some(ci=>ci.bookingNro===nroReserva&&nroReserva!=='');
-        if(existe){omitidas++;continue;}
+        // Si ya existe la reserva — actualizar campos vacíos en lugar de omitir
+        const ciExistente=nroReserva?DB.checkins.find(ci=>ci.bookingNro===nroReserva):null;
+        if(ciExistente){
+          let actualizado=false;
+          if(!ciExistente.guestDoc&&doc){ciExistente.guestDoc=doc;actualizado=true;}
+          if(!ciExistente.guestEmail&&email){ciExistente.guestEmail=email;actualizado=true;}
+          if(!ciExistente.guestTel&&tel){ciExistente.guestTel=tel;actualizado=true;}
+          if(!ciExistente.adultos&&adultos){ciExistente.adultos=adultos;actualizado=true;}
+          if(!ciExistente.ninos&&ninos){ciExistente.ninos=ninos;actualizado=true;}
+          if(!ciExistente.paisOrigen&&pais){ciExistente.paisOrigen=pais;actualizado=true;}
+          if(actualizado)omitidas++;else omitidas++;
+          // Contar como omitida (no nueva) pero con datos actualizados
+          resultados.push({nombre,checkIn,checkOut,hab:ciExistente.roomNumber,precio:fmtGs(ciExistente.totalRoomGs),estado:'Actualizada',nroReserva});
+          continue;
+        }
         // Determinar habitación: buscar por tipo
         const tipoBookLower=tipoBooking.split(',')[0].trim();
         let roomMatch=null;
