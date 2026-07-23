@@ -1270,10 +1270,7 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
     +'<div><div class="xs">Noches</div><div class="bold">'+n+'</div></div>'
     +'<div><div class="xs">Total hab.</div><div class="bold c-amber">'+fmtGs(totalGs)+'</div></div>'
     +'</div>'
-    +((ci.adultos||ci.ninos)?'<div style="padding:6px 10px;background:var(--surface2);border-radius:6px;margin-bottom:8px;font-size:12px">'
-    +'&#128100; <b>'+(ci.adultos||1)+' adulto(s)</b>'+(ci.ninos?' + <b>'+ci.ninos+' niño(s)</b>':'')+'  —  Verificar al check-in que no ingresen más personas que las declaradas.'
-    +'</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0">
-    +'</div>'
+    +((ci.adultos||ci.ninos)?'<div style="padding:6px 10px;background:var(--surface2);border-radius:6px;margin-bottom:8px;font-size:12px">&#128100; <b>'+(ci.adultos||1)+' adulto(s)</b>'+(ci.ninos?' + <b>'+ci.ninos+' niño(s)</b>':'')+'  —  Verificar al check-in que no ingresen más personas que las declaradas.</div>':'')
     +'<div class="sec-title" style="margin-bottom:6px">Pagos registrados</div>'
     +pagosHtml
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px;background:var(--surface2);border-radius:8px;margin:8px 0">'
