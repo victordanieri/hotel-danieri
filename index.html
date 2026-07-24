@@ -311,15 +311,15 @@ function sbStatus(ok){
 
 const ROOM_TYPES=['simple','doble','triple','cuadruple','matrimonial','doble matrimonial','familiar','suite'];
 const BED_TYPES=['individual','matrimonial','sommier','litera','cucheta'];
-const PAY_METHODS=['Efectivo Gs.','Efectivo USD','Efectivo Reales','Tarjeta','Transferencia'];
-const CURRENCIES={USD:{s:'$',d:2},PYG:{s:'Gs.',d:0},BRL:{s:'R$',d:2},ARS:{s:'$',d:0}};
+const PAY_METHODS=['Efectivo Gs.','Efectivo USD','Tarjeta','Transferencia','Cheque'];
+const CURRENCIES={USD:{s:'$',d:2},PYG:{s:'Gs.',d:0}};
 
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function defaultData(){
   const d=todayStr();
   return {
     hotel:{name:'Hotel de Mama',address:'Asuncion, Paraguay'},
-    currency:{display:'PYG',rates:{[d]:{PYG:7800,PYGBUY:7500,BRL:5.05,ARS:980}}},
+    currency:{display:'PYG',rates:{[d]:{PYG:7800,PYGBUY:7500}}},
     users:[
       {id:'u1',name:'Victor Superadmin',username:'victor',password:'admin123',role:'superadmin',active:true},
       {id:'u2',name:'Administradora',username:'admin',password:'hotel2024',role:'admin',active:true},
@@ -462,7 +462,7 @@ window._collapsedFloors={};
 window._dragCI=null;
 
 function disCur(){return DB.currency.display||'PYG';}
-function todayRates(){const d=todayStr();return DB.currency.rates[d]||DB.currency.rates[Object.keys(DB.currency.rates).sort().pop()]||{PYG:7800,PYGBUY:7500,BRL:5.05,ARS:980};}
+function todayRates(){const d=todayStr();return DB.currency.rates[d]||DB.currency.rates[Object.keys(DB.currency.rates).sort().pop()]||{PYG:7800,PYGBUY:7500};}
 function gsToUSD(gs){return gs/(todayRates().PYG||7800);}
 function usdToGs(usd){return usd*(todayRates().PYG||7800);}
 function fmtGs(n){return 'Gs. '+new Intl.NumberFormat('es-PY').format(Math.round(n||0));}
@@ -1407,10 +1407,6 @@ function calcVueltoCI(totalConDesc,usdSell,usdBuy){
   if(unit==='USD'){
     montoGs=Math.round(amt*usdSell);
     display='US$ '+amt.toFixed(2)+' × '+usdSell.toLocaleString()+' = Gs. '+montoGs.toLocaleString();
-  } else if(unit==='BRL'){
-    const brlRate=todayRates().BRL||5.05;
-    montoGs=Math.round(amt*brlRate);
-    display='R$ '+amt.toFixed(2)+' × '+brlRate.toFixed(2)+' = Gs. '+montoGs.toLocaleString();
   } else {
     display='Gs. '+Math.round(amt).toLocaleString();
   }
