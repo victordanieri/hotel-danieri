@@ -1263,9 +1263,16 @@ function mCobrarAnticipado(ciId){
   if(!window._ciPagosId||window._ciPagosId!==ciId){window._ciPagos=[];window._ciPagosId=ciId;}
   const totalGs=ci.totalRoomGs||0;
   const pagos=window._ciPagos||[];
+  const descuento=window._ciDescuento||0;
+  const totalConDesc=Math.max(0,totalGs-descuento);
   const totalPagado=pagos.reduce((a,p)=>a+p.monto,0);
-  const saldo=totalGs-totalPagado;
-  const completo=totalPagado>=totalGs&&totalGs>0;
+  const saldo=totalConDesc-totalPagado;
+  const completo=totalPagado>=totalConDesc&&totalConDesc>0;
+  // Precio en USD si la habitación tiene pricesUSD
+  const room2=DB.rooms.find(r=>r.id===ci.roomId);
+  const usdRate2=DB.currency?.rates?.[Object.keys(DB.currency?.rates||{}).sort().reverse()[0]]?.PYG||7800;
+  const priceUSD=room2?.pricesUSD?.[ci.source]||room2?.pricesUSD?.['Booking']||(totalGs/usdRate2);
+  const totalUSD=ci.totalRoomUSD||(totalGs/usdRate2);
   const pagosHtml=pagos.length>0
     ?'<div class="table-wrap" style="margin:6px 0"><table><tr><th>Metodo</th><th class="right">Monto</th><th></th></tr>'
      +pagos.map((p,i)=>'<tr><td>'+p.metodo+'</td><td class="right bold c-green">'+fmtGs(p.monto)+'</td>'
@@ -1311,7 +1318,10 @@ function doConfirmCobrarAnticipado(ciId){
   const ci=DB.checkins.find(x=>x.id===ciId);if(!ci)return;
   const pagos=window._ciPagos||[];
   const totalPagado=pagos.reduce((a,p)=>a+p.monto,0);
-  if(totalPagado<(ci.totalRoomGs||0)){toast('El pago no cubre el total','error');return;}
+  const descuento2=window._ciDescuento||0;
+  const totalFinal=Math.max(0,(ci.totalRoomGs||0)-descuento2);
+  if(totalPagado<totalFinal){toast('El pago no cubre el total','error');return;}
+  if(descuento2>0){ci.descuento=descuento2;ci.descuentoAuth=window._ciDescuentoAuth||CU.name;}
   // Crear cargo de habitación si no existe
   const existCh=DB.charges.find(c=>c.checkinId===ci.id&&c.category==='habitacion');
   if(!existCh&&ci.totalRoomGs>0)DB.charges.push({id:uid(),checkinId:ci.id,roomId:ci.roomId,concept:'Anticipado Hab.'+ci.roomNumber+' - '+ci.guestName,amountGs:ci.totalRoomGs,date:new Date().toISOString(),paid:false,category:'habitacion',createdBy:CU.id});
@@ -1336,9 +1346,16 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
   const n=nts(ci.checkIn,ci.checkOut);
   const totalGs=ci.totalRoomGs||0;
   const pagos=window._ciPagos||[];
+  const descuento=window._ciDescuento||0;
+  const totalConDesc=Math.max(0,totalGs-descuento);
   const totalPagado=pagos.reduce((a,p)=>a+p.monto,0);
-  const saldo=totalGs-totalPagado;
-  const completo=totalPagado>=totalGs&&totalGs>0;
+  const saldo=totalConDesc-totalPagado;
+  const completo=totalPagado>=totalConDesc&&totalConDesc>0;
+  // Precio en USD si la habitación tiene pricesUSD
+  const room2=DB.rooms.find(r=>r.id===ci.roomId);
+  const usdRate2=DB.currency?.rates?.[Object.keys(DB.currency?.rates||{}).sort().reverse()[0]]?.PYG||7800;
+  const priceUSD=room2?.pricesUSD?.[ci.source]||room2?.pricesUSD?.['Booking']||(totalGs/usdRate2);
+  const totalUSD=ci.totalRoomUSD||(totalGs/usdRate2);
   const pagosHtml=pagos.length>0
     ?'<div class="table-wrap" style="margin:6px 0"><table><tr><th>Metodo</th><th class="right">Monto</th><th></th></tr>'
      +pagos.map((p,i)=>'<tr><td>'+p.metodo+'</td><td class="right bold c-green">'+fmtGs(p.monto)+'</td>'
@@ -1377,6 +1394,39 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
       :'<button class="btn-primary" disabled style="opacity:0.35;cursor:not-allowed" title="Registra el pago completo primero">&#10003; Confirmar Check-In</button>')
     +'</div></div>');
 }
+function aplicarDescuentoCI(ciId,cajeroResp){
+  const desc=parseInt(document.getElementById('ci-desc')?.value)||0;
+  if(!desc||desc<=0){toast('Ingresa un monto de descuento','error');return;}
+  const ci=DB.checkins.find(x=>x.id===ciId);
+  if(desc>=ci.totalRoomGs){toast('El descuento no puede ser mayor o igual al total','error');return;}
+  window._ciDescuento=desc;
+  window._ciDescuentoAuth=CU.name;
+  renderConfirmCheckinModal(ciId,cajeroResp);
+  toast('Descuento de '+fmtGs(desc)+' aplicado por '+CU.name,'success');
+}
+async function aplicarDescuentoCIPin(ciId,cajeroResp){
+  const desc=parseInt(document.getElementById('ci-desc')?.value)||0;
+  const pin=document.getElementById('ci-pin')?.value||'';
+  if(!desc||desc<=0){toast('Ingresa un monto de descuento','error');return;}
+  if(!pin){toast('Ingresa el PIN del administrador','error');return;}
+  // Verificar PIN contra usuarios admin/superadmin
+  const admins=DB.users.filter(u=>u.active&&(u.role==='admin'||u.role==='superadmin'));
+  let authAdmin=null;
+  for(const a of admins){
+    if(a.passwordHash){
+      const h=await hashPassword(pin);
+      if(h===a.passwordHash){authAdmin=a;break;}
+    } else if(a.password&&a.password===pin){authAdmin=a;break;}
+  }
+  if(!authAdmin){toast('PIN incorrecto — no autorizado','error');return;}
+  const ci=DB.checkins.find(x=>x.id===ciId);
+  if(desc>=ci.totalRoomGs){toast('El descuento no puede ser mayor o igual al total','error');return;}
+  window._ciDescuento=desc;
+  window._ciDescuentoAuth=authAdmin.name;
+  log('descuento_aprobado','Descuento '+fmtGs(desc)+' aprobado por '+authAdmin.name+' para check-in hab '+ci.roomNumber);
+  renderConfirmCheckinModal(ciId,cajeroResp);
+  toast('&#10003; Descuento aprobado por '+authAdmin.name,'success');
+}
 function addPagoCI(ciId,cajeroResp){
   const metodo=document.getElementById('ccm')?.value;
   const monto=parseInt(document.getElementById('ccamt')?.value)||0;
@@ -1397,7 +1447,10 @@ function doConfirmCheckin(ciId,cajeroResp){
   const room=DB.rooms.find(r=>r.id===ci.roomId);if(!room)return;
   const pagos=window._ciPagos||[];
   const totalPagado=pagos.reduce((a,p)=>a+p.monto,0);
-  if(totalPagado<(ci.totalRoomGs||0)){toast('El pago no cubre el total','error');return;}
+  const descuento2=window._ciDescuento||0;
+  const totalFinal=Math.max(0,(ci.totalRoomGs||0)-descuento2);
+  if(totalPagado<totalFinal){toast('El pago no cubre el total','error');return;}
+  if(descuento2>0){ci.descuento=descuento2;ci.descuentoAuth=window._ciDescuentoAuth||CU.name;}
   // Confirmar check-in
   ci.checkedIn=true;ci.checkinDate=new Date().toISOString();if(cajeroResp)ci.staffResp=cajeroResp;
   room.status='occupied';room.currentGuest=ci.guestName;room.checkIn=ci.checkIn;room.checkOut=ci.checkOut;
@@ -1410,7 +1463,7 @@ function doConfirmCheckin(ciId,cajeroResp){
   pagos.forEach(p=>{
     DB.payments.push({id:uid(),checkinId:ci.id,concept:'Check-in Hab.'+ci.roomNumber+' - '+ci.guestName,amountGs:p.monto,currency:'PYG',method:p.metodo,staffResp:ci.staffResp,cajaId:DB.cajaActual?.id||null,date:new Date().toISOString(),createdBy:CU.id});
   });
-  window._ciPagos=[];window._ciPagosId=null;
+  window._ciPagos=[];window._ciPagosId=null;window._ciDescuento=0;window._ciDescuentoAuth=null;
   syncClienteFromCheckin(ci);
   save();log('checkin','Check-in: '+ci.guestName+' hab '+ci.roomNumber);closeModal();render();toast('&#10003; Check-in confirmado - Hab. '+ci.roomNumber,'success');
 }
@@ -1753,8 +1806,10 @@ function mEditRoom(rid){
     +'<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px;margin-bottom:8px"><div class="xs mb8">Modulo 1</div><div class="field-row"><div class="field"><label>Tipo</label><select id="erb1t">'+bO(g1.type)+'</select></div><div class="field"><label>Cantidad</label><input id="erb1q" type="number" value="'+(g1.qty||1)+'" min="1" max="8" onchange="updBS()"></div></div></div>'
     +'<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px;margin-bottom:8px"><div class="xs mb8">Modulo 2 (opcional)</div><div class="field-row"><div class="field"><label>Tipo</label><select id="erb2t"><option value="">Sin cama adicional</option>'+bO(g2.type)+'</select></div><div class="field"><label>Cantidad</label><input id="erb2q" type="number" value="'+(g2.qty||0)+'" min="0" max="8" onchange="updBS()"></div></div></div>'
     +'<div id="bsum" class="alert info mb8"></div>'
-    +'<div class="sec-title">Precios por origen <span class="pill-gs">Gs./noche</span></div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'+src.map(s=>'<div class="field"><label>'+s+'</label><input id="erps_'+s.replace(/[^a-z0-9]/gi,'_')+'" type="number" step="1000" value="'+(prices[s]||0)+'"></div>').join('')+'</div>'
+    +'<div class="sec-title">Precios por origen</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--surface2);padding:8px;border-radius:6px;margin-bottom:4px"><div class="xs muted">Canal</div><div class="xs muted">Precio Gs./noche</div><div class="xs muted">Precio USD/noche</div></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px">'+src.map(s=>'<div class="xs muted" style="padding:4px 0;border-bottom:1px solid var(--border)">'+s+'</div><div class="field" style="margin:0"><input id="erps_'+s.replace(/[^a-z0-9]/gi,'_')+'" type="number" step="1000" placeholder="Gs." value="'+(prices[s]||0)+'"></div><div class="field" style="margin:0"><input id="erpu_'+s.replace(/[^a-z0-9]/gi,'_')+'" type="number" step="1" placeholder="USD" value="'+(r?.pricesUSD?.[s]||'')+'"></div>').join('')+'</div>'
+    +'<div class="alert info" style="font-size:11px;margin-bottom:8px">Los precios USD se usan para Booking y canales OTA. Los precios Gs. para reservas locales. Si completas USD, el sistema usa la tasa del día para mostrar el equivalente.</div>'
     +'<div class="field-row"><div class="field"><label>Max. huespedes</label><input id="erg" type="number" value="'+(r?.maxGuests||2)+'"></div><div class="field"><label>Notas</label><input id="erc" type="text" value="'+(r?.notes||'')+'"></div></div>'
     +(r&&r.status==='free'?'<div class="divider"></div><button class="btn-danger btn-sm" onclick="delRoom(\''+r.id+'\')">Eliminar</button>':'')
     +'<div class="modal-footer"><button class="btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="saveRoom(\''+( rid||'')+'\')">Guardar</button></div></div>');
@@ -1768,8 +1823,14 @@ function saveRoom(rid){
   if(DB.rooms.find(r=>r.number===num&&r.id!==rid)){toast('Numero ya existe','error');return;}
   const bg=[{type:b1t,qty:b1q}];const b2t=document.getElementById('erb2t').value,b2q=parseInt(document.getElementById('erb2q').value)||0;if(b2t&&b2q>0)bg.push({type:b2t,qty:b2q});
   const src=DB.reservationSources||['Local','Booking','Expedia','Airbnb','Otro'];
-  const prices={};src.forEach(s=>{const el=document.getElementById('erps_'+s.replace(/[^a-z0-9]/gi,'_'));if(el)prices[s]=parseInt(el.value)||0;});
-  const data={number:num,floor:parseInt(document.getElementById('erf').value)||1,type:document.getElementById('ert').value,bedGroups:bg,maxGuests:parseInt(document.getElementById('erg').value)||2,prices,notes:document.getElementById('erc').value.trim()};
+  const prices={},pricesUSD={};
+  src.forEach(s=>{
+    const elGs=document.getElementById('erps_'+s.replace(/[^a-z0-9]/gi,'_'));
+    const elUSD=document.getElementById('erpu_'+s.replace(/[^a-z0-9]/gi,'_'));
+    if(elGs)prices[s]=parseInt(elGs.value)||0;
+    if(elUSD&&elUSD.value.trim())pricesUSD[s]=parseFloat(elUSD.value)||0;
+  });
+  const data={number:num,floor:parseInt(document.getElementById('erf').value)||1,type:document.getElementById('ert').value,bedGroups:bg,maxGuests:parseInt(document.getElementById('erg').value)||2,prices,pricesUSD,notes:document.getElementById('erc').value.trim()};
   if(rid){Object.assign(DB.rooms.find(x=>x.id===rid),data);}else{DB.rooms.push({id:uid(),...data,status:'free',dirty:false,currentGuest:null,checkIn:null,checkOut:null});}
   DB.rooms.sort((a,b)=>a.number.localeCompare(b.number,undefined,{numeric:true}));
   save();log('room',rid?'Editada':'Agregada');closeModal();render();toast(rid?'Actualizada':'Agregada','success');
@@ -3388,9 +3449,9 @@ function cfgHabs(){
   const src=DB.reservationSources||['Local','Booking','Expedia','Airbnb','Otro'];
   return '<div class="flex-b mb12"><div class="card-title">'+DB.rooms.length+' hab. / '+tc+' camas</div><button class="btn-primary btn-sm" onclick="mEditRoom()">+ Nueva hab.</button></div>'
     +'<div class="card"><div class="table-wrap"><table><tr><th>N</th><th>Piso</th><th>Tipo</th><th>Camas</th>'
-    +src.map(s=>'<th>'+s+' Gs.</th>').join('')+'<th>Estado</th><th></th></tr>'
+    +src.map(s=>'<th>'+s+' Gs.</th><th>'+s+' USD</th>').join('')+'<th>Estado</th><th></th></tr>'
     +sorted.map(r=>'<tr><td class="bold">'+r.number+'</td><td>'+(r.floor||'-')+'</td><td><span class="tag">'+r.type+'</span></td><td style="font-size:11px">'+bedLbl(r.bedGroups)+'</td>'
-      +src.map(s=>'<td class="bold c-amber">'+fmtGs(getRoomPrice(r,s))+'</td>').join('')
+      +src.map(s=>'<td class="bold c-amber">'+fmtGs(getRoomPrice(r,s))+'</td><td class="bold" style="color:var(--green)">'+(r.pricesUSD?.[s]?'US$ '+r.pricesUSD[s]:'-')+'</td>').join('')
       +'<td><span class="badge '+(r.status==='occupied'?'red':r.status==='reserved'?'blue':r.dirty?'amber':r.status==='closed'?'gray':'green')+'">'+(r.status==='occupied'?'Ocupada':r.status==='reserved'?'Reservada':r.dirty?'Limpieza':r.status==='closed'?'Cerrada':'Libre')+'</span></td>'
       +'<td><button class="btn-secondary btn-xs" onclick="mEditRoom(\''+r.id+'\')">Ed.</button></td></tr>').join('')
     +'</table></div></div>';
