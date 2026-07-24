@@ -581,10 +581,10 @@ function render(){
       const rates=todayRates();
       const savedDates=Object.keys(DB.currency?.rates||{}).sort().reverse();
       const lastDate=savedDates[0]||'';
-      const lastRates=lastDate?DB.currency.rates[lastDate]:{PYG:7800,BRL:5.05};
+      const lastRates=lastDate?DB.currency.rates[lastDate]:{PYG:7800,PYGBUY:7500};
       let pill='<div class="cur-pill">';
-      if(lastRates.PYG)pill+='<span style="font-size:11px;color:var(--text3)">USD <b style="color:var(--accent)">'+new Intl.NumberFormat('es-PY',{maximumFractionDigits:0}).format(lastRates.PYG)+'</b> Gs</span>';
-      if(lastRates.BRL)pill+='<span style="font-size:11px;color:var(--text3);margin-left:8px">R$ <b style="color:var(--amber)">'+new Intl.NumberFormat('es-PY',{maximumFractionDigits:0}).format(lastRates.BRL)+'</b> Gs</span>';
+      if(lastRates.PYG)pill+='<span style="font-size:11px;color:var(--text3)" title="Tasa venta USD">USD <b style="color:var(--accent)">'+new Intl.NumberFormat('es-PY',{maximumFractionDigits:0}).format(lastRates.PYG)+'</b> Gs</span>';
+      if(lastRates.PYGBUY)pill+='<span style="font-size:11px;color:var(--text3);margin-left:8px" title="Tasa compra USD">/ <b style="color:var(--text2)">'+new Intl.NumberFormat('es-PY',{maximumFractionDigits:0}).format(lastRates.PYGBUY)+'</b> Gs</span>';
       if(lastDate)pill+='<span style="font-size:9px;color:var(--text3);margin-left:6px;opacity:.6">'+fd(lastDate)+'</span>';
       pill+='</div>';
       return '<div class="tb-right">'+pill;
@@ -1381,13 +1381,18 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
     +(completo
       ?'<div class="alert success" style="margin-bottom:8px">&#10003; Pago completo. Ya podes confirmar el check-in.</div>'
       :'<div class="alert warning" style="font-size:11px;margin-bottom:8px">&#9888; Registra pagos hasta cubrir el total. Podes combinar varios metodos.</div>')
-    +'<div class="sec-title" style="margin-bottom:6px">Agregar pago</div>'
+    +'<div class="sec-title" style="margin-bottom:4px">Agregar pago</div>'
+    +'<div class="alert info" style="font-size:11px;margin-bottom:6px">'
+    +'Equiv. USD del saldo: <b style="color:var(--green)">US$ '+(saldo/usdRate2).toFixed(2)+'</b>'
+    +' · Venta: <b class="c-amber">Gs. '+usdRate2.toLocaleString()+'/USD</b>'
+    +' · Compra (vuelto): <b>Gs. '+(todayRates().PYGBUY||usdRate2).toLocaleString()+'/USD</b></div>'
     +'<div class="field-row" style="align-items:flex-end">'
-    +'<div class="field"><label>Metodo de pago</label><select id="ccm">'+PAY_METHODS.map(m=>'<option>'+m+'</option>').join('')+'</select></div>'
-    +'<div class="field"><label>Monto (Gs.)</label><input id="ccamt" type="number" step="1000" min="1" value="'+Math.max(0,saldo)+'"></div>'
-    +'<div class="field"><button class="btn-secondary" style="width:100%;margin-top:20px" onclick="addPagoCI(\''+ciId+'\',\''+cajeroResp+'\')">+ Agregar</button></div>'
+    +'<div class="field"><label>Metodo</label><select id="ccm" onchange="calcVueltoCI('+['totalConDesc','usdRate2','(todayRates().PYGBUY||usdRate2)'].join(',')+')">'+PAY_METHODS.map(m=>'<option>'+m+'</option>').join('')+'</select></div>'
+    +'<div class="field"><label>Monto</label><input id="ccamt" type="number" step="0.01" min="0.01" value="'+(Math.max(0,saldo)).toFixed(0)+'" oninput="calcVueltoCI('+['totalConDesc','usdRate2','(todayRates().PYGBUY||usdRate2)'].join(',')+')"></div>'
+    +'<div class="field"><label>Unidad</label><select id="ccunit" onchange="calcVueltoCI('+['totalConDesc','usdRate2','(todayRates().PYGBUY||usdRate2)'].join(',')+')"><option value="GS">Gs.</option><option value="USD">USD</option></select></div>'
+    +'<div class="field"><button class="btn-secondary" style="width:100%;margin-top:20px" onclick="addPagoCIUnit(\''+ciId+'\',\''+cajeroResp+'\','+usdRate2+','+(todayRates().PYGBUY||usdRate2)+')">+ Agregar</button></div>'
     +'</div>'
-    +'<div class="modal-footer">'
+    +'<div id="ci-vuelto" style="display:none;padding:8px 10px;background:var(--surface2);border-radius:6px;margin-top:4px;font-size:12px"></div>'
     +'<button class="btn-secondary" onclick="window._ciPagos=[];window._ciPagosId=null;mViewRes(\''+ciId+'\')">&#8592; Volver</button>'
     +(completo
       ?'<button class="btn-primary" onclick="doConfirmCheckin(\''+ciId+'\',\''+cajeroResp+'\')">&#10003; Confirmar Check-In</button>'
@@ -2911,7 +2916,7 @@ function mCobrarCargo(cid){
     +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">'
     +'<div class="xs">Equiv. USD</div><div style="font-size:16px;font-weight:700;color:var(--accent)">$ '+(monto/usdR).toFixed(2)+'</div><div class="xs">1 USD = '+new Intl.NumberFormat('es-PY').format(usdR)+' Gs</div></div>'
     +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">'
-    +'<div class="xs">Equiv. Reales</div><div style="font-size:16px;font-weight:700;color:var(--amber)">R$ '+(monto/brlR).toFixed(2)+'</div><div class="xs">1 R$ = '+new Intl.NumberFormat('es-PY').format(brlR)+' Gs</div></div>'
+'</div>'
     +'</div>'
     +'<div class="field-row">'
     +'<div class="field"><label>Metodo de pago</label><select id="mc-mth" onchange="updVuelto('+monto+')">'+PAY_METHODS.map(m=>'<option>'+m+'</option>').join('')+'</select></div>'
@@ -3511,18 +3516,31 @@ function renderAudit(){
 function cfgMonedas(){
   const r=todayRates(),d=todayStr();
   const past=Object.keys(DB.currency.rates).sort().reverse();
-  return '<div class="card"><div class="card-header"><div class="card-title">Tasas de cambio - '+fd(d)+'</div><span class="tag">Base: Gs. (PYG)</span></div>'
-    +'<div class="alert info mb12">Todos los precios del sistema son en Guaranies. Las tasas se usan para convertir pagos en moneda extranjera y calcular equivalencias.</div>'
-    +'<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)"><span class="bold" style="width:60px">USD</span><span style="flex:1;color:var(--text2);font-size:12px">Dolar Americano</span><input style="width:130px" id="rPYG" type="number" value="'+(r.PYG||7800)+'" step="10" min="1"><span class="xs">Gs. por 1 USD</span></div>'
-    +'<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)"><span class="bold" style="width:60px">BRL</span><span style="flex:1;color:var(--text2);font-size:12px">Real Brasilero</span><input style="width:130px" id="rBRL" type="number" value="'+(r.BRL||5.05)+'" step="0.01" min="0.01"><span class="xs">Gs. por 1 Real</span></div>'
+  return '<div class="card"><div class="card-header"><div class="card-title">Tasas de cambio — '+fd(d)+'</div><span class="tag">Base: Gs. (PYG)</span></div>'
+    +'<div class="alert info mb12" style="font-size:12px"><b>Tasa VENTA:</b> Cuando el cliente paga en USD → cobramos en Gs. por esta tasa (la más alta).<br><b>Tasa COMPRA:</b> Vuelto en Gs. cuando paga con billete USD mayor (la más baja).</div>'
+    +'<div style="display:grid;grid-template-columns:100px 1fr 140px 80px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">'
+    +'<span class="bold">USD VENTA</span><span style="color:var(--text2);font-size:12px">Cobros en Gs. — tasa más alta</span>'
+    +'<input id="rPYG" type="number" value="'+(r.PYG||7800)+'" step="10" min="1"><span class="xs">Gs./USD</span></div>'
+    +'<div style="display:grid;grid-template-columns:100px 1fr 140px 80px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">'
+    +'<span class="bold">USD COMPRA</span><span style="color:var(--text2);font-size:12px">Vuelto en Gs. — tasa más baja</span>'
+    +'<input id="rPYGBUY" type="number" value="'+(r.PYGBUY||(r.PYG?r.PYG-300:7500))+'" step="10" min="1"><span class="xs">Gs./USD</span></div>'
     +'<div style="margin-top:14px"><button class="btn-primary" onclick="saveRates()">Guardar tasas de hoy</button></div></div>'
-    +(past.length>1?'<div class="card"><div class="card-title mb12">Historial de tasas</div><table><tr><th>Fecha</th><th>Gs. por 1 USD</th><th>Gs. por 1 Real</th></tr>'+past.map(date=>'<tr><td>'+fd(date)+(date===d?' <span class="badge blue">hoy</span>':'')+'</td><td>'+(DB.currency.rates[date].PYG?.toLocaleString()||'-')+'</td><td>'+(DB.currency.rates[date].BRL?.toLocaleString('es-PY',{minimumFractionDigits:2})||'-')+'</td></tr>').join('')+'</table></div>':'');
+    +(past.length>0?'<div class="card"><div class="card-title mb12">Historial de tasas</div>'
+    +'<table><tr><th>Fecha</th><th>USD VENTA (Gs.)</th><th>USD COMPRA (Gs.)</th></tr>'
+    +past.map(date=>'<tr><td>'+fd(date)+(date===d?' <span class="badge blue">hoy</span>':'')+'</td>'
+    +'<td class="bold c-amber">'+(DB.currency.rates[date].PYG?.toLocaleString()||'-')+'</td>'
+    +'<td>'+(DB.currency.rates[date].PYGBUY?.toLocaleString()||'-')+'</td></tr>').join('')
+    +'</table></div>':'');
 }
 function saveRates(){
   const PYG=parseFloat(document.getElementById('rPYG').value)||7800;
-  const BRL=parseFloat(document.getElementById('rBRL')?.value)||5.05;
-  DB.currency.rates[todayStr()]={PYG,BRL,ARS:DB.currency.rates[todayStr()]?.ARS||980};
-  save();log('rates','Tasas: USD='+PYG+' Gs, Real='+BRL+' Gs');toast('Tasas guardadas','success');
+  const PYGBUY=parseFloat(document.getElementById('rPYGBUY').value)||(PYG-300);
+  if(PYGBUY>=PYG){toast('La tasa de compra debe ser menor que la de venta','error');return;}
+  DB.currency.rates[todayStr()]={PYG,PYGBUY};
+  save();
+  log('rates','Tasas: Venta='+PYG+' Gs/USD, Compra='+PYGBUY+' Gs/USD');
+  render();
+  toast('✓ Tasas guardadas — Venta: Gs. '+PYG.toLocaleString()+'/USD | Compra: Gs. '+PYGBUY.toLocaleString()+'/USD','success');
 }
 function cfgHabs(){
   const sorted=[...DB.rooms].sort((a,b)=>a.number.localeCompare(b.number,undefined,{numeric:true}));
