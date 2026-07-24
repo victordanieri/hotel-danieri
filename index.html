@@ -1357,17 +1357,13 @@ function mEditResData(ciId){
     +'<div class="alert warning" style="margin-bottom:10px;font-size:11px">Responsable asignado: <b>'+cajeroResp+'</b>'+(DB.cajaActual?' (caja N°'+DB.cajaActual.numero+' abierta)':' (sin caja abierta)')+'</div>'
     +'<div class="divider"></div>'
     +'<div class="field-row"><div class="field"><label>Nro. Documento (CI / Pasaporte) <span style="color:var(--red)">*</span></label><input id="erd-doc" type="text" value="'+(ci.guestDoc||'')+'"></div>'
-    +(ci.bookingNro?
-      '<div class="field"><label>Telefono <span class="xs muted">(bloqueado — viene de Booking)</span></label><input type="text" value="'+(ci.guestTel||'Sin datos en Booking')+'" disabled style="opacity:0.5"></div>':
-      '<div class="field"><label>Telefono / Celular</label><input id="erd-tel" type="text" value="'+(ci.guestTel||'')+'"></div>')
+    +'<div class="field"><label>Telefono / Celular</label><input id="erd-tel" type="text" value="'+(ci.guestTel||'')+'"></div>'
     +'</div>'
     +'<div class="field-row">'
     +'<div class="field"><label>Chapa del vehiculo</label><input id="erd-vp" type="text" value="'+(ci.vehiclePlate||'')+'"></div>'
-    +(ci.bookingNro?
-      '<div class="field"><label>Email <span class="xs muted">(bloqueado — viene de Booking)</span></label><input type="email" value="'+(ci.guestEmail||'Sin datos en Booking')+'" disabled style="opacity:0.5"></div>':
-      '<div class="field"><label>Correo electronico</label><input id="erd-email" type="email" value="'+(ci.guestEmail||'')+'"></div>')
+    +'<div class="field"><label>Correo electronico</label><input id="erd-email" type="email" value="'+(ci.guestEmail||'')+'"></div>'
     +'</div>'
-    +(ci.bookingNro?'<div class="alert info" style="font-size:11px">&#128274; Booking no exporta email ni documento en su reporte. Completá el <b>documento</b> manualmente y el email si lo tenés disponible.</div>':'')
+    +(ci.bookingNro?'<div class="alert info" style="font-size:11px">&#8505; Booking no exporta email ni teléfono. Completá estos datos al momento del check-in.</div>':'')
     +'<div class="field"><label>Observaciones</label><textarea id="erd-obs" rows="2">'+(ci.obs||'')+'</textarea></div>'
     +'<div class="modal-footer"><button class="btn-secondary" onclick="mViewRes(\''+ciId+'\')">&#8592; Volver</button><button class="btn-primary" onclick="doEditResData(\''+ciId+'\',\''+cajeroResp+'\')">Guardar datos</button></div>'
     +'</div>',true);
@@ -1375,9 +1371,9 @@ function mEditResData(ciId){
 function doEditResData(ciId,cajeroResp){
   const ci=DB.checkins.find(x=>x.id===ciId);if(!ci)return;
   ci.guestDoc=document.getElementById('erd-doc').value.trim();
-  if(document.getElementById('erd-tel'))ci.guestTel=document.getElementById('erd-tel').value.trim();
+  ci.guestTel=document.getElementById('erd-tel')?.value.trim()||ci.guestTel||'';
   ci.vehiclePlate=document.getElementById('erd-vp').value.trim().toUpperCase();
-  if(document.getElementById('erd-email'))ci.guestEmail=document.getElementById('erd-email').value.trim();
+  ci.guestEmail=document.getElementById('erd-email')?.value.trim()||ci.guestEmail||'';
   ci.obs=document.getElementById('erd-obs').value.trim();
   ci.staffResp=cajeroResp;
   save();log('edit_res','Datos editados reserva hab '+ci.roomNumber+' - '+ci.guestName);
