@@ -3491,11 +3491,13 @@ async function doMigrateClientes(){
   let creados=0,actualizados=0;
   const now=new Date().toISOString();
   DB.checkins.filter(ci=>ci.guestName&&ci.status!=='cancelled').forEach(ci=>{
-    let cli=DB.clientes.lista.find(c=>
-      (ci.clienteId&&c.id===ci.clienteId)||
-      (ci.guestDoc&&c.doc&&ci.guestDoc!==''&&c.doc===ci.guestDoc)||
-      c.nombre.toLowerCase()===ci.guestName.toLowerCase()
-    );
+    // Buscar cliente por clienteId, doc o nombre
+    let cli=null;
+    if(ci.clienteId) cli=DB.clientes.lista.find(c=>c.id===ci.clienteId);
+    if(!cli&&ci.guestDoc&&ci.guestDoc.trim()&&ci.guestDoc!=='-')
+      cli=DB.clientes.lista.find(c=>c.doc&&c.doc===ci.guestDoc);
+    if(!cli)
+      cli=DB.clientes.lista.find(c=>c.nombre.toLowerCase().trim()===ci.guestName.toLowerCase().trim());
     if(cli){
       let upd=false;
       if(!cli.doc&&ci.guestDoc&&ci.guestDoc!=='-'){cli.doc=ci.guestDoc;upd=true;}
@@ -3503,17 +3505,20 @@ async function doMigrateClientes(){
       if(!cli.email&&ci.guestEmail&&ci.guestEmail!=='-'){cli.email=ci.guestEmail;upd=true;}
       if(!cli.vehiclePlate&&ci.vehiclePlate){cli.vehiclePlate=ci.vehiclePlate;upd=true;}
       if(!cli.pais&&ci.paisOrigen){cli.pais=ci.paisOrigen;upd=true;}
-      const srcVal=ci.source||ci.channel||''; if(srcVal&&cli.source!==srcVal){cli.source=srcVal;upd=true;}
+      // SIEMPRE actualizar source si el checkin lo tiene y el cliente no
+      const src=ci.source||ci.channel||'';
+      if(src&&!cli.source){cli.source=src;upd=true;}
       if(!cli.reservadoPor&&ci.reservadoPor){cli.reservadoPor=ci.reservadoPor;upd=true;}
+      if(!ci.clienteId){ci.clienteId=cli.id;upd=true;}
       if(upd){cli.updatedAt=now;actualizados++;}
-      if(!ci.clienteId)ci.clienteId=cli.id;
     } else {
       const nc={
         id:uid(),nombre:ci.guestName,
         doc:ci.guestDoc||'',tel:ci.guestTel||'',email:ci.guestEmail||'',
         vehiclePlate:ci.vehiclePlate||'',pais:ci.paisOrigen||'',
         ciudad:'',cumple:'',tags:[],notas:'',
-        source:ci.source||ci.channel||'',reservadoPor:ci.reservadoPor||'',
+        source:ci.source||ci.channel||'',
+        reservadoPor:ci.reservadoPor||'',
         direccion:ci.direccion||'',adultos:ci.adultos||1,
         prefHab:'',prefPiso:'',prefNota:'',
         creadoAt:now,updatedAt:now,
