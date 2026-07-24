@@ -1377,13 +1377,11 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
   const usdBuy2=todayRates().PYGBUY||usdRate2;
   const vueltoUSDTotal=vueltoTotal>0&&pagos.some(p=>p.unit==='USD')?roundGs(Math.round(vueltoTotal/usdBuy2*100)/100):0;
   const pagosHtml=pagos.length>0
-    ?'<div class="table-wrap" style="margin:6px 0"><table><tr><th>Metodo</th><th class="right">Monto registrado</th><th></th></tr>'
-     +pagos.map((p,i)=>'<tr><td>'+p.metodo+'</td><td class="right bold c-green">'+fmtGs(p.montoGs||p.monto)+'</td>'
+    ?'<div class="table-wrap" style="margin:6px 0"><table><tr><th>Metodo</th><th class="right">Gs.</th><th class="right" style="color:#00dc8f">USD</th><th></th></tr>'
+     +pagos.map((p,i)=>'<tr><td>'+p.metodo+'</td>'
+     +'<td class="right bold">'+(p.unit!=='USD'?'<span class="c-green">'+fmtGs(p.montoGs||p.monto)+'</span>':'<span class="muted">-</span>')+'</td>'
+     +'<td class="right bold">'+(p.unit==='USD'?'<span style="color:#00dc8f">US$ '+(p.amtOrig||0).toFixed(2)+'</span>':'<span class="muted">-</span>')+'</td>'
      +'<td><button class="btn-xs btn-danger" onclick="window._ciPagos.splice('+i+',1);renderConfirmCheckinModal(\''+ciId+'\',\''+cajeroResp+'\')" >&#x2715;</button></td></tr>').join('')
-     +(vueltoTotal>0?'<tr style="background:rgba(255,200,0,0.1)"><td colspan="3" style="padding:8px">'
-     +'<span style="color:var(--amber);font-weight:700;font-size:13px">&#128181; Vuelto al cliente: <span style="font-size:15px">'+fmtGs(vueltoTotal)+'</span>'
-     +(vueltoTotal>0&&pagos.some(p=>p.unit==="USD")?'  ≈  US$ '+(vueltoTotal/usdBuy2).toFixed(2)+' (tasa compra Gs. '+usdBuy2.toLocaleString()+'/USD)':'')
-     +'</span></td></tr>':'')
      +'</table></div>':'<div class="xs muted" style="padding:6px 0">Sin pagos registrados aún.</div>';
   window._ciRates={sell:usdRate2,buy:todayRates().PYGBUY||usdRate2,ciId,cajeroResp};
   showModal(
@@ -1415,9 +1413,6 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
         +'<tr style="color:var(--text3)"><td style="padding:4px 8px"></td>'
         +'<td style="text-align:center;padding:4px;color:#00dc8f">USD</td>'
         +'<td style="text-align:center;padding:4px;color:var(--amber)">Equiv. Gs.</td></tr>'
-        +'<tr><td class="xs" style="padding:4px 8px">Total</td>'
-        +'<td style="text-align:center;font-weight:700;color:#00dc8f;padding:4px">US$ '+totalUSD.toFixed(2)+'</td>'
-        +'<td style="text-align:center;font-weight:700;color:var(--amber);padding:4px">'+fmtGs(roundGs(Math.round(totalUSD*usdSell)))+'</td></tr>'
         +'<tr><td class="xs" style="padding:4px 8px">Cobrado</td>'
         +'<td style="text-align:center;font-weight:700;color:var(--green);padding:4px">US$ '+totalPagadoUSD.toFixed(2)+'</td>'
         +'<td style="text-align:center;font-weight:700;color:var(--green);padding:4px">'+fmtGs(pagoGsEquiv+roundGs(Math.round(pagoUSD*usdSell)))+'</td></tr>'
