@@ -1424,16 +1424,13 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
     +(completo
       ?'<div class="alert success" style="margin-bottom:8px">&#10003; Pago completo. Ya podes confirmar el check-in.</div>'
       :'<div class="alert warning" style="font-size:11px;margin-bottom:8px">&#9888; Registra pagos hasta cubrir el total. Podes combinar varios metodos.</div>')
-    +'<div class="sec-title" style="margin-bottom:4px">Agregar pago</div>'
-    +'<div class="alert info" style="font-size:11px;margin-bottom:6px">'
-    +'Equiv. USD del saldo: <b style="color:#00dc8f">US$ '+(saldo/usdRate2).toFixed(2)+'</b>'
-    +' · Venta: <b class="c-amber">Gs. '+usdRate2.toLocaleString()+'/USD</b>'
-    +'<div class="alert info" style="font-size:11px;margin-bottom:6px">&#8505; <b>Efectivo USD</b> descuenta del saldo en dólares. Los demás métodos descuentan del saldo en Gs. · Vuelto en Gs. si paga con billete mayor (tasa compra: <b>Gs. '+(todayRates().PYGBUY||usdRate2).toLocaleString()+'/USD</b>)</div>'
+    +'<div class="sec-title" style="margin-bottom:6px">Agregar pago</div>'
     +'<div class="field-row" style="align-items:flex-end">'
     +'<div class="field"><label>Metodo de pago</label><select id="ccm">'+PAY_METHODS.map(m=>'<option>'+m+'</option>').join('')+'</select></div>'
-    +'<div class="field"><label>Monto</label><input id="ccamt" type="number" step="1000" min="0" placeholder="0"></div>'
+    +'<div class="field"><label>Monto</label><input id="ccamt" type="number" step="1000" min="0" placeholder="0" oninput="calcVueltoCIAuto()"></div>'
     +'<div class="field"><button class="btn-secondary" style="width:100%;margin-top:20px" onclick="addPagoCIAuto(this)">+ Agregar</button></div>'
     +'</div>'
+    +'<div id="ci-vuelto" style="display:none;margin-top:8px;padding:10px;background:rgba(255,200,0,0.1);border-radius:6px;border:1px solid var(--amberborder);font-size:13px;color:var(--amber);font-weight:700"></div>'
     +'<div class="modal-footer">'
     +'<button class="btn-secondary" onclick="window._ciPagos=[];window._ciPagosId=null;mViewRes(\''+ciId+'\')">&#8592; Volver</button>'
     +(completo
@@ -1515,6 +1512,45 @@ function addPagoCIUnit(ciId,cajeroResp,usdSell,usdBuy){
   if(!window._ciPagos)window._ciPagos=[];
   window._ciPagos.push({metodo:metodoLabel,monto:montoGs,montoGs,unit,amtOrig:amt});
   renderConfirmCheckinModal(ciId,cajeroResp);
+}
+function calcVueltoCIAuto(){
+  const el=document.getElementById('ci-vuelto');
+  if(!el)return;
+  const amt=parseFloat(document.getElementById('ccamt')?.value)||0;
+  const method=document.getElementById('ccm')?.value||'';
+  if(amt<=0){el.style.display='none';return;}
+  const {sell:usdSell,buy:usdBuy,ciId}=window._ciRates||{};
+  if(!ciId){el.style.display='none';return;}
+  const ci=DB.checkins.find(x=>x.id===ciId);if(!ci){el.style.display='none';return;}
+  const pagos=window._ciPagos||[];
+  const descuento=window._ciDescuento||0;
+  const totalUSD=ci.totalRoomUSD||(roundGs((ci.totalRoomGs||0)-descuento)/(usdSell||7800));
+  const pagoUSD=pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0);
+  const pagoGs=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
+  const pagoGsEnUSD=(usdSell||7800)>0?pagoGs/(usdSell||7800):0;
+  const saldoUSD=Math.max(0,totalUSD-(pagoUSD+pagoGsEnUSD));
+  const isUSD=method==='Efectivo USD';
+  if(isUSD){
+    // Paga en USD — vuelto en Gs. por tasa compra
+    if(amt>saldoUSD){
+      const vueltoUSD=amt-saldoUSD;
+      const vueltoGs=roundGs(Math.round(vueltoUSD*(usdBuy||7500)));
+      el.textContent='💵 Vuelto: Gs. '+vueltoGs.toLocaleString()+' (US$ '+vueltoUSD.toFixed(2)+' × tasa compra Gs. '+(usdBuy||7500).toLocaleString()+'/USD)';
+      el.style.display='block';
+    } else {
+      el.style.display='none';
+    }
+  } else {
+    // Paga en Gs. — vuelto en Gs.
+    const saldoGs=roundGs(Math.round(saldoUSD*(usdSell||7800)));
+    if(roundGs(amt)>saldoGs){
+      const vueltoGs=roundGs(amt)-saldoGs;
+      el.textContent='💵 Vuelto: Gs. '+vueltoGs.toLocaleString();
+      el.style.display='block';
+    } else {
+      el.style.display='none';
+    }
+  }
 }
 // Método define moneda: Efectivo USD → USD, resto → Gs.
 function addPagoCIAuto(){
