@@ -3501,8 +3501,9 @@ async function doForceUpdateClienteSource(){
       cli=DB.clientes.lista.find(c=>c.doc&&c.doc===ci.guestDoc);
     if(!cli)
       cli=DB.clientes.lista.find(c=>c.nombre.toLowerCase().trim()===ci.guestName.toLowerCase().trim());
-    if(cli&&(!cli.source||cli.source.trim()==='')){ 
-      cli.source=src; cli.updatedAt=now; actualizados++;
+    if(cli){ 
+      // Forzar actualización sin condición — sobreescribe cualquier valor anterior
+      if(cli.source!==src){cli.source=src; cli.updatedAt=now; actualizados++;}
     }
   });
   if(actualizados===0){toast('Todos los clientes ya tienen origen asignado','info');return;}
