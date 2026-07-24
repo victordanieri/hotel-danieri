@@ -1258,7 +1258,7 @@ function mViewRes(ciId){
     +(ci.obs?'<div class="alert warning" style="margin-top:8px">Obs: '+ci.obs+'</div>':'')
     +'<div class="modal-footer">'
     +(can('admin')?'<button class="btn-danger btn-sm" onclick="cancelRes(\''+ciId+'\')">Cancelar reserva</button>':'')
-    +'<button class="btn-secondary" onclick="mEditResData(\''+ciId+'\')">&#9998; Editar datos</button>'    +'<button class="btn-secondary" onclick="closeModal()">Cerrar</button>'    +((!ci.guestDoc||ci.guestDoc==='-'||!ci.guestEmail||ci.guestEmail==='-')?      '<div style="width:100%"><div class="alert warning" style="font-size:11px;margin:4px 0 0">&#9888; Complete el <b>documento</b> y <b>correo</b> del huesped en &ldquo;Editar datos&rdquo; antes de confirmar el check-in.</div></div>'      +'<button class="btn-primary" disabled style="opacity:0.4;cursor:not-allowed">Confirmar Check-In</button>':      '<button class="btn-primary" onclick="mConfirmCheckin(\''+ciId+'\')">Confirmar Check-In</button>')
+    +'<button class="btn-secondary" onclick="mEditResData(\''+ciId+'\')">&#9998; Editar datos</button>'    +'<button class="btn-secondary" onclick="closeModal()">Cerrar</button>'    +((!ci.guestDoc||ci.guestDoc==='-')?      '<div style="width:100%"><div class="alert warning" style="font-size:11px;margin:4px 0 0">&#9888; Complete el <b>documento</b> del huesped en &ldquo;Editar datos&rdquo; antes de confirmar el check-in. Email y teléfono son opcionales.</div></div>'      +'<button class="btn-primary" disabled style="opacity:0.4;cursor:not-allowed">Confirmar Check-In</button>':      '<button class="btn-primary" onclick="mConfirmCheckin(\''+ciId+'\')">Confirmar Check-In</button>')
     +'</div></div>',true);
 }
 function mCobrarAnticipado(ciId){
