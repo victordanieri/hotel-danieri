@@ -3470,7 +3470,9 @@ function cfgDatos(){
     +'<div class="flex" style="gap:10px;margin-top:14px;flex-wrap:wrap">'
     +'<button class="btn-success" onclick="forceSyncToCloud()">&#9729; Sincronizar con nube</button>'
     +'<button class="btn-secondary" onclick="expData()">Exportar JSON (backup)</button>'
-    +'<button class="btn-secondary" onclick="impData()">Importar JSON</button></div>'
+    +'<button class="btn-secondary" onclick="impData()">Importar JSON</button>'
+    +(can('superadmin')?'<button class="btn-primary" onclick="doMigrateClientes()">&#128100; Migrar clientes desde historial</button>':'')
+    +'</div>'
     +'<div class="divider"></div><div class="sec-title">Zona de peligro</div>'
     +'<div class="flex" style="gap:10px;margin-top:10px;flex-wrap:wrap">'
     +'<button class="btn-danger" onclick="resetOp()">&#9888; Reset operativo</button>'
@@ -3481,6 +3483,70 @@ function cfgDatos(){
     +'<b>Reset total:</b> Borra absolutamente todo. Requiere confirmacion escrita.'
     +'</div></div>';
 }
+async function doMigrateClientes(){
+  if(!DB.checkins||!DB.checkins.length){toast('No hay check-ins en el sistema','error');return;}
+  if(!DB.clientes)DB.clientes={lista:[],tags:[],origenes:[]};
+  if(!DB.clientes.lista)DB.clientes.lista=[];
+  const antes=DB.clientes.lista.length;
+  let creados=0,actualizados=0;
+  const now=new Date().toISOString();
+  DB.checkins.filter(ci=>ci.guestName&&ci.status!=='cancelled').forEach(ci=>{
+    let cli=DB.clientes.lista.find(c=>
+      (ci.clienteId&&c.id===ci.clienteId)||
+      (ci.guestDoc&&c.doc&&ci.guestDoc!==''&&c.doc===ci.guestDoc)||
+      c.nombre.toLowerCase()===ci.guestName.toLowerCase()
+    );
+    if(cli){
+      let upd=false;
+      if(!cli.doc&&ci.guestDoc&&ci.guestDoc!=='-'){cli.doc=ci.guestDoc;upd=true;}
+      if(!cli.tel&&ci.guestTel&&ci.guestTel!=='-'){cli.tel=ci.guestTel;upd=true;}
+      if(!cli.email&&ci.guestEmail&&ci.guestEmail!=='-'){cli.email=ci.guestEmail;upd=true;}
+      if(!cli.vehiclePlate&&ci.vehiclePlate){cli.vehiclePlate=ci.vehiclePlate;upd=true;}
+      if(!cli.pais&&ci.paisOrigen){cli.pais=ci.paisOrigen;upd=true;}
+      if(!cli.source&&ci.source){cli.source=ci.source;upd=true;}
+      if(!cli.reservadoPor&&ci.reservadoPor){cli.reservadoPor=ci.reservadoPor;upd=true;}
+      if(upd){cli.updatedAt=now;actualizados++;}
+      if(!ci.clienteId)ci.clienteId=cli.id;
+    } else {
+      const nc={
+        id:uid(),nombre:ci.guestName,
+        doc:ci.guestDoc||'',tel:ci.guestTel||'',email:ci.guestEmail||'',
+        vehiclePlate:ci.vehiclePlate||'',pais:ci.paisOrigen||'',
+        ciudad:'',cumple:'',tags:[],notas:'',
+        source:ci.source||'',reservadoPor:ci.reservadoPor||'',
+        direccion:ci.direccion||'',adultos:ci.adultos||1,
+        prefHab:'',prefPiso:'',prefNota:'',
+        creadoAt:now,updatedAt:now,
+      };
+      DB.clientes.lista.push(nc);
+      ci.clienteId=nc.id;
+      creados++;
+    }
+  });
+  const despues=DB.clientes.lista.length;
+  // Guardar en localStorage
+  localStorage.setItem(KEY,JSON.stringify(DB));
+  // Subir a Supabase
+  toast('Guardando en la nube...','info');
+  try{
+    const payload={id:SB_ID,data:DB,updated_at:new Date().toISOString()};
+    const r=await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify(payload)
+    });
+    if(r.ok){
+      log('migrar_clientes','Migración manual: '+creados+' creados, '+actualizados+' actualizados');
+      render();
+      toast('&#10003; Migración completada: '+creados+' clientes nuevos, '+actualizados+' actualizados. Total: '+despues,'success');
+    } else {
+      toast('Error al guardar en la nube: '+r.status,'error');
+    }
+  }catch(e){
+    toast('Error de conexión: '+e.message,'error');
+  }
+}
+
 function expData(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}));a.download='hotel_backup_'+todayStr()+'.json';a.click();toast('Exportado','success');}
 function forceSyncToCloud(){toast('Sincronizando...','info');sbSave().then(function(){toast('\u2601 Datos subidos a Supabase','success');}).catch(function(e){toast('Error: '+e.message,'error');});}
 function impData(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{DB=JSON.parse(ev.target.result);save();render();toast('Importado','success');}catch{toast('Archivo invalido','error');}};r.readAsText(f);};i.click();}
