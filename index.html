@@ -1270,16 +1270,16 @@ function mCobrarAnticipado(ciId){
   const totalConDesc=Math.max(0,totalGs-descuento);
   const totalPagado=pagos.reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
   const saldo=totalConDesc-totalPagado;
-  // Deuda única en USD — saldo = totalUSD - (pagosUSD + pagosGsConvertidos)
+  // usdRate2 debe declararse ANTES de usarse
+  const room2=DB.rooms.find(r=>r.id===ci.roomId);
+  const usdRate2=DB.currency?.rates?.[Object.keys(DB.currency?.rates||{}).sort().reverse()[0]]?.PYG||7800;
+  // Deuda única en USD
   const _totalUSD=ci.totalRoomUSD||0;
   const _pUSD=pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0);
   const _pGsEquiv=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
   const _pGsEnUSD=usdRate2>0?_pGsEquiv/usdRate2:0;
   const _saldoUSD=Math.max(0,_totalUSD-(_pUSD+_pGsEnUSD));
   const completo=_saldoUSD<0.01&&(_pUSD>0||_pGsEquiv>0);
-  // Precio en USD si la habitación tiene pricesUSD
-  const room2=DB.rooms.find(r=>r.id===ci.roomId);
-  const usdRate2=DB.currency?.rates?.[Object.keys(DB.currency?.rates||{}).sort().reverse()[0]]?.PYG||7800;
   const priceUSD=room2?.pricesUSD?.[ci.source]||room2?.pricesUSD?.['Booking']||(totalGs/usdRate2);
   const totalUSD=ci.totalRoomUSD||(totalGs/usdRate2);
   const pagosHtml=pagos.length>0
@@ -1359,16 +1359,16 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
   const totalConDesc=roundGs(Math.max(0,totalGs-descuento));
   const totalPagado=pagos.reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
   const saldo=totalConDesc-totalPagado;
-  // Deuda única en USD — saldo = totalUSD - (pagosUSD + pagosGsConvertidos)
+  // usdRate2 debe declararse ANTES de usarse
+  const room2=DB.rooms.find(r=>r.id===ci.roomId);
+  const usdRate2=DB.currency?.rates?.[Object.keys(DB.currency?.rates||{}).sort().reverse()[0]]?.PYG||7800;
+  // Deuda única en USD
   const _totalUSD=ci.totalRoomUSD||0;
   const _pUSD=pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0);
   const _pGsEquiv=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
   const _pGsEnUSD=usdRate2>0?_pGsEquiv/usdRate2:0;
   const _saldoUSD=Math.max(0,_totalUSD-(_pUSD+_pGsEnUSD));
   const completo=_saldoUSD<0.01&&(_pUSD>0||_pGsEquiv>0);
-  // Precio en USD si la habitación tiene pricesUSD
-  const room2=DB.rooms.find(r=>r.id===ci.roomId);
-  const usdRate2=DB.currency?.rates?.[Object.keys(DB.currency?.rates||{}).sort().reverse()[0]]?.PYG||7800;
   const priceUSD=room2?.pricesUSD?.[ci.source]||room2?.pricesUSD?.['Booking']||(totalGs/usdRate2);
   const totalUSD=ci.totalRoomUSD||(totalGs/usdRate2);
   // Calcular vuelto si hay exceso pagado
