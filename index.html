@@ -248,33 +248,53 @@ async function sbLoad(){
     if(r.ok){
       const rows=await r.json();
       if(rows&&rows.length>0&&rows[0].data){
-        // SIEMPRE cargar desde Supabase — es la fuente de verdad
-        const remoteData=rows[0].data;
-        const remoteTs=rows[0].updated_at;
-        DB=remoteData;
+        // 1. Cargar datos desde Supabase
+        DB=rows[0].data;
         localStorage.setItem(KEY,JSON.stringify(DB));
-        localStorage.setItem(KEY+'_ts',remoteTs);
+        localStorage.setItem(KEY+'_ts',rows[0].updated_at);
+
+        // 2. Migraciones de estructura
         migrateDB();
         await migratePasswords();
+
+        // 3. Migrar clientes históricos si faltan
         const clientesAntes=(DB.clientes&&DB.clientes.lista)?DB.clientes.lista.length:0;
         migrateHistoricClients();
         const clientesDespues=(DB.clientes&&DB.clientes.lista)?DB.clientes.lista.length:0;
-        // Si la migración agregó clientes nuevos, subir a Supabase
-        if(clientesDespues>clientesAntes){
-          await sbSave();
-          console.log('Clientes migrados a Supabase:',clientesDespues-clientesAntes,'nuevos');
+        const hayClientesNuevos=clientesDespues>clientesAntes;
+
+        // 4. Si hubo cambios, guardar en localStorage y subir a Supabase
+        if(hayClientesNuevos){
+          localStorage.setItem(KEY,JSON.stringify(DB));
+          console.log('Clientes nuevos migrados:',clientesDespues-clientesAntes,'('+clientesDespues+' total)');
+          // Subir a Supabase de forma síncrona para asegurar persistencia
+          try{
+            const payload={id:SB_ID,data:DB,updated_at:new Date().toISOString()};
+            const sr=await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
+              method:'POST',
+              headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+              body:JSON.stringify(payload)
+            });
+            if(sr.ok) console.log('Clientes guardados en Supabase OK');
+            else console.warn('Error guardando clientes en Supabase:',sr.status);
+          }catch(se){console.warn('Error Supabase clientes:',se);}
         }
+
+        // 5. Renderizar
         render();
-        toast('&#9729; Datos cargados desde la nube','success');
+        toast('&#9729; Datos cargados · '+clientesDespues+' clientes','success');
       } else {
-        // Sin datos en Supabase aún — subir localStorage actual
+        // Sin datos en Supabase — subir lo que hay en localStorage
         await sbSave();
         toast('&#9729; Datos locales subidos a la nube','success');
       }
     } else {
       console.warn('sbLoad HTTP error:',r.status);
     }
-  }catch(e){console.warn('Supabase load error:',e);}
+  }catch(e){
+    console.warn('Supabase load error:',e);
+    render(); // fallback
+  }
 }
 
 async function sbInit(){
