@@ -2916,8 +2916,6 @@ function mCobrarCargo(cid){
     +'<div class="xs">Total a cobrar</div><div style="font-size:18px;font-weight:700;color:var(--amber)">'+fmtGs(monto)+'</div></div>'
     +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">'
     +'<div class="xs">Equiv. USD</div><div style="font-size:16px;font-weight:700;color:var(--accent)">$ '+(monto/usdR).toFixed(2)+'</div><div class="xs">1 USD = '+new Intl.NumberFormat('es-PY').format(usdR)+' Gs</div></div>'
-    +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">'
-'</div>'
     +'</div>'
     +'<div class="field-row">'
     +'<div class="field"><label>Metodo de pago</label><select id="mc-mth" onchange="updVuelto('+monto+')">'+PAY_METHODS.map(m=>'<option>'+m+'</option>').join('')+'</select></div>'
