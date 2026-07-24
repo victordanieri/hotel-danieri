@@ -470,7 +470,7 @@ function fmtUSD(n){return '$ '+new Intl.NumberFormat('es-PY',{minimumFractionDig
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 // Redondear Gs al millar más cercano (ej: 3.532.743 → 3.533.000)
-function roundGs(n){return Math.round(n/1000)*1000;}
+function roundGs(n){return Math.ceil(n/1000)*1000;}
 
 // ══════════════════════════════════════════════
 // SEGURIDAD: Hash de contraseñas con SHA-256
