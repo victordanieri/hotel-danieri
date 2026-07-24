@@ -1393,6 +1393,7 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
     +'<div class="field"><button class="btn-secondary" style="width:100%;margin-top:20px" onclick="addPagoCIUnit(\''+ciId+'\',\''+cajeroResp+'\','+usdRate2+','+(todayRates().PYGBUY||usdRate2)+')">+ Agregar</button></div>'
     +'</div>'
     +'<div id="ci-vuelto" style="display:none;padding:8px 10px;background:var(--surface2);border-radius:6px;margin-top:4px;font-size:12px"></div>'
+    +'<div class="modal-footer">'
     +'<button class="btn-secondary" onclick="window._ciPagos=[];window._ciPagosId=null;mViewRes(\''+ciId+'\')">&#8592; Volver</button>'
     +(completo
       ?'<button class="btn-primary" onclick="doConfirmCheckin(\''+ciId+'\',\''+cajeroResp+'\')">&#10003; Confirmar Check-In</button>'
