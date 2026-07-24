@@ -517,7 +517,7 @@ function migrateHistoricClients(){
       if(!cli.email&&ci.guestEmail){cli.email=ci.guestEmail;}
       if(!cli.vehiclePlate&&ci.vehiclePlate){cli.vehiclePlate=ci.vehiclePlate;}
       if(!cli.pais&&ci.paisOrigen){cli.pais=ci.paisOrigen;}
-      if(!cli.source&&ci.source){cli.source=ci.source;}
+      if((ci.source||ci.channel)&&!cli.source){cli.source=ci.source||ci.channel||'';}
       if(!cli.reservadoPor&&ci.reservadoPor){cli.reservadoPor=ci.reservadoPor;}
       if(!cli.direccion&&ci.direccion){cli.direccion=ci.direccion;}
       cli.updatedAt=now;
@@ -3503,7 +3503,7 @@ async function doMigrateClientes(){
       if(!cli.email&&ci.guestEmail&&ci.guestEmail!=='-'){cli.email=ci.guestEmail;upd=true;}
       if(!cli.vehiclePlate&&ci.vehiclePlate){cli.vehiclePlate=ci.vehiclePlate;upd=true;}
       if(!cli.pais&&ci.paisOrigen){cli.pais=ci.paisOrigen;upd=true;}
-      if(!cli.source&&(ci.source||ci.channel)){cli.source=ci.source||ci.channel;upd=true;}
+      const srcVal=ci.source||ci.channel||''; if(srcVal&&cli.source!==srcVal){cli.source=srcVal;upd=true;}
       if(!cli.reservadoPor&&ci.reservadoPor){cli.reservadoPor=ci.reservadoPor;upd=true;}
       if(upd){cli.updatedAt=now;actualizados++;}
       if(!ci.clienteId)ci.clienteId=cli.id;
