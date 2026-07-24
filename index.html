@@ -3471,7 +3471,8 @@ function cfgDatos(){
     +'<button class="btn-success" onclick="forceSyncToCloud()">&#9729; Sincronizar con nube</button>'
     +'<button class="btn-secondary" onclick="expData()">Exportar JSON (backup)</button>'
     +'<button class="btn-secondary" onclick="impData()">Importar JSON</button>'
-    +(can('superadmin')?'<button class="btn-primary" onclick="doMigrateClientes()">&#128100; Migrar clientes desde historial</button>':'')
+    +(can('superadmin')?'<button class="btn-primary" onclick="doMigrateClientes()">&#128100; Migrar clientes desde historial</button>'+
+    '<button class="btn-secondary" onclick="doForceUpdateClienteSource()">&#128279; Actualizar origen clientes</button>':'')
     +'</div>'
     +'<div class="divider"></div><div class="sec-title">Zona de peligro</div>'
     +'<div class="flex" style="gap:10px;margin-top:10px;flex-wrap:wrap">'
@@ -3483,6 +3484,40 @@ function cfgDatos(){
     +'<b>Reset total:</b> Borra absolutamente todo. Requiere confirmacion escrita.'
     +'</div></div>';
 }
+async function doForceUpdateClienteSource(){
+  // Fuerza actualización de source en TODOS los clientes desde sus checkins
+  if(!DB.clientes||!DB.clientes.lista||!DB.clientes.lista.length){
+    toast('No hay clientes en el sistema','error');return;
+  }
+  let actualizados=0;
+  const now=new Date().toISOString();
+  DB.checkins.filter(ci=>ci.guestName&&ci.source).forEach(ci=>{
+    const src=ci.source||ci.channel||'';
+    if(!src)return;
+    // Buscar cliente por clienteId, doc o nombre
+    let cli=null;
+    if(ci.clienteId)cli=DB.clientes.lista.find(c=>c.id===ci.clienteId);
+    if(!cli&&ci.guestDoc&&ci.guestDoc.trim()&&ci.guestDoc!=='-')
+      cli=DB.clientes.lista.find(c=>c.doc&&c.doc===ci.guestDoc);
+    if(!cli)
+      cli=DB.clientes.lista.find(c=>c.nombre.toLowerCase().trim()===ci.guestName.toLowerCase().trim());
+    if(cli&&(!cli.source||cli.source.trim()==='')){ 
+      cli.source=src; cli.updatedAt=now; actualizados++;
+    }
+  });
+  if(actualizados===0){toast('Todos los clientes ya tienen origen asignado','info');return;}
+  localStorage.setItem(KEY,JSON.stringify(DB));
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({id:SB_ID,data:DB,updated_at:new Date().toISOString()})
+    });
+    if(r.ok){render();toast('✓ '+actualizados+' clientes actualizados con su origen','success');}
+    else toast('Error Supabase: '+r.status,'error');
+  }catch(e){toast('Error: '+e.message,'error');}
+}
+
 async function doMigrateClientes(){
   if(!DB.checkins||!DB.checkins.length){toast('No hay check-ins en el sistema','error');return;}
   if(!DB.clientes)DB.clientes={lista:[],tags:[],origenes:[]};
@@ -3505,9 +3540,9 @@ async function doMigrateClientes(){
       if(!cli.email&&ci.guestEmail&&ci.guestEmail!=='-'){cli.email=ci.guestEmail;upd=true;}
       if(!cli.vehiclePlate&&ci.vehiclePlate){cli.vehiclePlate=ci.vehiclePlate;upd=true;}
       if(!cli.pais&&ci.paisOrigen){cli.pais=ci.paisOrigen;upd=true;}
-      // SIEMPRE actualizar source si el checkin lo tiene y el cliente no
+      // Actualizar source: !cli.source detecta null/undefined pero no string vacío
       const src=ci.source||ci.channel||'';
-      if(src&&!cli.source){cli.source=src;upd=true;}
+      if(src&&(!cli.source||cli.source.trim()==='')){cli.source=src;upd=true;}
       if(!cli.reservadoPor&&ci.reservadoPor){cli.reservadoPor=ci.reservadoPor;upd=true;}
       if(!ci.clienteId){ci.clienteId=cli.id;upd=true;}
       if(upd){cli.updatedAt=now;actualizados++;}
