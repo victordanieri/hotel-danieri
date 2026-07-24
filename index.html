@@ -469,6 +469,8 @@ function fmtGs(n){return 'Gs. '+new Intl.NumberFormat('es-PY').format(Math.round
 function fmtUSD(n){return '$ '+new Intl.NumberFormat('es-PY',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);}
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+// Redondear Gs al millar más cercano (ej: 3.532.743 → 3.533.000)
+function roundGs(n){return Math.round(n/1000)*1000;}
 
 // ══════════════════════════════════════════════
 // SEGURIDAD: Hash de contraseñas con SHA-256
@@ -1250,7 +1252,10 @@ function mViewRes(ciId){
     +'<div><div class="xs">Responsable</div><div><span class="tag">'+(ci.staffResp||'Sin asignar')+'</span></div></div>'
     +'</div>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--surface2);border-radius:8px;margin-top:8px">'
-    +'<span class="bold">Total habitacion</span><span class="bold c-amber" style="font-size:16px">'+fmtGs(ci.totalRoomGs||0)+'</span>'
+    +'<span class="bold">Total habitacion</span>'
+    +'<span class="bold c-amber" style="font-size:16px">'
+    +(ci.totalRoomUSD?'US$ '+ci.totalRoomUSD.toFixed(2)+' ':'')+'</span>'
+    +'<span style="color:var(--text3);font-size:13px">≈ '+fmtGs(ci.totalRoomGs||0)+'</span>'
     +'</div>'
     +(ci.obs?'<div class="alert warning" style="margin-top:8px">Obs: '+ci.obs+'</div>':'')
     +'<div class="modal-footer">'
@@ -1368,7 +1373,9 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
     +'<div><div class="xs">Huesped</div><div class="bold">'+ci.guestName+'</div></div>'
     +'<div><div class="xs">Doc.</div><div class="bold">'+(ci.guestDoc||'-')+'</div></div>'
     +'<div><div class="xs">Noches</div><div class="bold">'+n+'</div></div>'
-    +'<div><div class="xs">Total hab.</div><div class="bold c-amber">'+fmtGs(totalGs)+'</div></div>'
+    +'<div><div class="xs">Total hab.</div>'
+    +'<div class="bold c-amber">'+(ci.totalRoomUSD?'US$ '+ci.totalRoomUSD.toFixed(2):'')+'</div>'
+    +'<div style="font-size:11px;color:var(--text3)">'+fmtGs(totalGs)+'</div></div>'
     +'</div>'
     +((ci.adultos||ci.ninos)?'<div style="padding:6px 10px;background:var(--surface2);border-radius:6px;margin-bottom:8px;font-size:12px">&#128100; <b>'+(ci.adultos||1)+' adulto(s)</b>'+(ci.ninos?' + <b>'+ci.ninos+' niño(s)</b>':'')+'  —  Verificar al check-in que no ingresen más personas que las declaradas.</div>':'')
     +'<div class="sec-title" style="margin-bottom:6px">Pagos registrados</div>'
@@ -1421,16 +1428,16 @@ function calcVueltoCI(totalConDesc,usdSell,usdBuy){
   const saldoAct=totalConDesc-yaPagado;
   const vueltoGs=montoGs-saldoAct;
   if(vueltoGs>0){
-    // Si pagó con USD, el vuelto se da en Gs. por tasa COMPRA
     const vueltoUSD=unit==='USD'?amt-(saldoAct/usdSell):0;
-    let vueltoInfo='<b style="color:var(--amber)">Vuelto: ';
+    let vueltoInfo='<b style="color:var(--accent)">&#128181; Vuelto al cliente: ';
     if(unit==='USD'&&vueltoUSD>0){
-      const vueltoEnGs=Math.round(vueltoUSD*usdBuy);
-      vueltoInfo+='US$ '+vueltoUSD.toFixed(2)+' → Gs. '+vueltoEnGs.toLocaleString()+' (tasa compra: '+usdBuy.toLocaleString()+')';
+      const vueltoEnGs=roundGs(Math.round(vueltoUSD*usdBuy));
+      vueltoInfo+='Gs. '+vueltoEnGs.toLocaleString()+' (US$ '+vueltoUSD.toFixed(2)+' × tasa compra Gs. '+usdBuy.toLocaleString()+'/USD)';
     } else {
-      vueltoInfo+='Gs. '+vueltoGs.toLocaleString();
+      const vueltoRed=roundGs(vueltoGs);
+      vueltoInfo+='Gs. '+vueltoRed.toLocaleString();
     }
-    vueltoInfo+='</b>';
+    vueltoInfo+='</b><br><span style="color:var(--text3);font-size:10px">Solo se registrará el saldo exacto. El vuelto es informativo.</span>';
     vueltoEl.innerHTML=display+'<br>'+vueltoInfo;
     vueltoEl.style.display='block';
   } else if(montoGs<saldoAct){
@@ -1446,35 +1453,33 @@ function addPagoCIUnit(ciId,cajeroResp,usdSell,usdBuy){
   const unit=document.getElementById('ccunit')?.value||'GS';
   const method=document.getElementById('ccm')?.value;
   if(amt<=0){toast('Ingresa un monto mayor a cero','error');return;}
-  // Convertir a Gs.
-  let montoGs=amt;
-  let metodoLabel=method;
-  if(unit==='USD'){montoGs=Math.round(amt*usdSell);metodoLabel=method+' (US$ '+amt.toFixed(2)+')';}
-  else if(unit==='BRL'){const brlRate=todayRates().BRL||5.05;montoGs=Math.round(amt*brlRate);metodoLabel=method+' (R$ '+amt.toFixed(2)+')';}
+  let montoGs=amt,metodoLabel=method;
+  if(unit==='USD'){montoGs=roundGs(Math.round(amt*usdSell));metodoLabel=method+' (US$ '+amt.toFixed(2)+')';}
+  else{montoGs=roundGs(Math.round(amt));}
   const ci=DB.checkins.find(x=>x.id===ciId);
   const totalGs2=ci?ci.totalRoomGs||0:0;
   const descuento=window._ciDescuento||0;
   const totalConDesc=Math.max(0,totalGs2-descuento);
   const pagos=window._ciPagos||[];
-  const totalPagado=pagos.reduce((a,p)=>a+p.montoGs,0);
+  const totalPagado=pagos.reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
   const saldo=totalConDesc-totalPagado;
   if(montoGs<=0){toast('Monto inválido','error');return;}
-  // Calcular vuelto si excede
-  let vueltoInfo='';
+  // Si supera el saldo: calcular vuelto, registrar solo el saldo
   if(montoGs>saldo){
-    const excessGs=montoGs-saldo;
+    let vueltoMsg='';
     if(unit==='USD'){
       const vueltoUSD=amt-(saldo/usdSell);
-      const vueltoGs=Math.round(vueltoUSD*usdBuy);
-      vueltoInfo=' | Vuelto: Gs. '+vueltoGs.toLocaleString()+' (US$ '+vueltoUSD.toFixed(2)+' × tasa compra '+usdBuy.toLocaleString()+')';
+      const vueltoGs=roundGs(Math.round(vueltoUSD*usdBuy));
+      vueltoMsg='Vuelto al cliente: Gs. '+vueltoGs.toLocaleString()+' (US$ '+vueltoUSD.toFixed(2)+' × tasa compra Gs. '+usdBuy.toLocaleString()+'/USD)';
     } else {
-      vueltoInfo=' | Vuelto: Gs. '+excessGs.toLocaleString();
+      const vueltoGs=roundGs(montoGs-saldo);
+      vueltoMsg='Vuelto al cliente: Gs. '+vueltoGs.toLocaleString();
     }
-    montoGs=saldo; // Solo registrar lo que corresponde
+    montoGs=saldo;
+    toast('&#128181; '+vueltoMsg,'info');
   }
   if(!window._ciPagos)window._ciPagos=[];
   window._ciPagos.push({metodo:metodoLabel,monto:montoGs,montoGs,unit,amtOrig:amt});
-  if(vueltoInfo)toast('Pago agregado'+vueltoInfo,'success');
   renderConfirmCheckinModal(ciId,cajeroResp);
 }
 function aplicarDescuentoCI(ciId,cajeroResp){
@@ -5400,7 +5405,7 @@ function doImportarBookingXLS(){
         const tipoBooking=String(row[cTipo]||'').toLowerCase().trim();
         const precioStr=String(row[cPrecio]||'0');
         const precioUSD=parseFloat(precioStr.replace(/[^0-9.]/g,''))||0;
-        const precioGs=Math.round(precioUSD*rate);
+        const precioGs=roundGs(Math.round(precioUSD*rate));
         const noches=parseInt(row[cNoches])||1;
         const adultos=parseInt(row[cPax])||1;
         const ninos=parseInt(row[cNinos])||0;
