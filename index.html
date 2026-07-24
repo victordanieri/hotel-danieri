@@ -1123,6 +1123,7 @@ function doCheckin(){
     });
     DB.payments.push({id:uid(),checkinId:ci.id,concept:'Check-in hab '+room.number+' - '+(name||ci.guestName),amountGs:paidAmt,currency:'PYG',method,staffResp,cajaId:DB.cajaActual?.id||null,date:new Date().toISOString(),createdBy:CU.id});
   }
+  syncClienteFromCheckin(ci);
   save();log('checkin','Check-in: '+(name||ci.guestName)+' hab '+room.number);closeModal();render();toast('Check-in confirmado','success');
 }
 
@@ -1336,6 +1337,7 @@ function doConfirmCheckin(ciId,cajeroResp){
     DB.payments.push({id:uid(),checkinId:ci.id,concept:'Check-in Hab.'+ci.roomNumber+' - '+ci.guestName,amountGs:p.monto,currency:'PYG',method:p.metodo,staffResp:ci.staffResp,cajaId:DB.cajaActual?.id||null,date:new Date().toISOString(),createdBy:CU.id});
   });
   window._ciPagos=[];window._ciPagosId=null;
+  syncClienteFromCheckin(ci);
   save();log('checkin','Check-in: '+ci.guestName+' hab '+ci.roomNumber);closeModal();render();toast('&#10003; Check-in confirmado - Hab. '+ci.roomNumber,'success');
 }
 function mEditResData(ciId){
@@ -4342,7 +4344,7 @@ function saveCliente(id){
 function mVerCliente(id){
   const c=(DB.clientes?.lista||[]).find(function(x){return x.id===id;});
   if(!c)return;
-  const estadias=DB.checkins.filter(function(ci){return ci.guestName===c.nombre||( ci.guestDoc&&ci.guestDoc===c.doc);}).sort(function(a,b){return b.checkIn.localeCompare(a.checkIn);});
+  const estadias=DB.checkins.filter(function(ci){return ci.guestName===c.nombre||(ci.guestDoc&&ci.guestDoc===c.doc)||(ci.clienteId&&ci.clienteId===c.id);}).sort(function(a,b){return b.checkIn.localeCompare(a.checkIn);});
   const totalGs=estadias.reduce(function(a,ci){return a+(ci.totalRoomGs||0);},0);
   const noches=estadias.reduce(function(a,ci){return a+(ci.nights||0);},0);
   showModal('<div class="modal-header"><h2>&#128065; Perfil de cliente</h2><button class="btn-icon" onclick="closeModal()">&#x2715;</button></div>'
@@ -4711,6 +4713,56 @@ function importarClientesDeCheckins(){
   });
   save();log('cli_import','Importados '+importados+' clientes desde reservas');
   render();toast('Importación completada: '+importados+' nuevos, '+omitidos+' ya existentes','success');
+}
+
+// ── Sync automático cliente desde check-in ──
+function syncClienteFromCheckin(ci){
+  if(!ci||!ci.guestName)return;
+  if(!DB.clientes)DB.clientes={lista:[],tags:[],origenes:[]};
+  if(!DB.clientes.lista)DB.clientes.lista=[];
+  // Buscar cliente existente por doc o nombre
+  let cli=DB.clientes.lista.find(c=>
+    (ci.guestDoc&&c.doc&&c.doc===ci.guestDoc)||
+    c.nombre.toLowerCase()===ci.guestName.toLowerCase()
+  );
+  const now=new Date().toISOString();
+  if(cli){
+    // Actualizar campos vacíos con los datos del check-in
+    let updated=false;
+    if(!cli.doc&&ci.guestDoc){cli.doc=ci.guestDoc;updated=true;}
+    if(!cli.tel&&ci.guestTel){cli.tel=ci.guestTel;updated=true;}
+    if(!cli.email&&ci.guestEmail){cli.email=ci.guestEmail;updated=true;}
+    if(!cli.vehiclePlate&&ci.vehiclePlate){cli.vehiclePlate=ci.vehiclePlate;updated=true;}
+    if(!cli.pais&&ci.paisOrigen){cli.pais=ci.paisOrigen;updated=true;}
+    if(!cli.reservadoPor&&ci.reservadoPor){cli.reservadoPor=ci.reservadoPor;updated=true;}
+    if(!cli.direccion&&ci.direccion){cli.direccion=ci.direccion;updated=true;}
+    if(updated)cli.updatedAt=now;
+    // Vincular clienteId al checkin
+    if(!ci.clienteId)ci.clienteId=cli.id;
+  } else {
+    // Crear nuevo cliente
+    const newCli={
+      id:uid(),
+      nombre:ci.guestName,
+      doc:ci.guestDoc||'',
+      tel:ci.guestTel||'',
+      email:ci.guestEmail||'',
+      vehiclePlate:ci.vehiclePlate||'',
+      pais:ci.paisOrigen||'',
+      ciudad:'',
+      cumple:'',
+      tags:[],
+      notas:'',
+      source:ci.source||'',
+      reservadoPor:ci.reservadoPor||'',
+      direccion:ci.direccion||'',
+      adultos:ci.adultos||1,
+      prefHab:'',prefPiso:'',prefNota:'',
+      creadoAt:now,updatedAt:now,
+    };
+    DB.clientes.lista.push(newCli);
+    ci.clienteId=newCli.id;
+  }
 }
 
 // ── Generar mensaje con IA ──
