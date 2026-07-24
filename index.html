@@ -468,6 +468,22 @@ async function migratePasswords(){
   return migrated;
 }
 // migratePasswords se llama desde sbLoad después de cargar datos remotos
+
+// Migración única: sincronizar todos los checkins históricos a la base de clientes
+function migrateHistoricClients(){
+  if(!DB.checkins||!DB.checkins.length)return;
+  if(!DB.clientes)DB.clientes={lista:[],tags:[],origenes:[]};
+  if(!DB.clientes.lista)DB.clientes.lista=[];
+  let synced=0;
+  DB.checkins.filter(ci=>ci.guestName&&ci.status!=='cancelled').forEach(ci=>{
+    syncClienteFromCheckin(ci);
+    synced++;
+  });
+  if(synced>0){
+    console.log('migrateHistoricClients: '+synced+' checkins sincronizados a clientes');
+    save();
+  }
+}
 function fd(s){if(!s)return '-';return new Date(s+'T12:00:00').toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fdt(s){if(!s)return '-';return new Date(s).toLocaleString('es-PY',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}
 function save(){
