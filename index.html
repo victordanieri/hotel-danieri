@@ -1215,7 +1215,7 @@ function mViewRes(ciId){
     +'<div class="field-row3" style="margin-bottom:10px">'
     +'<div><div class="xs">Numero</div><div class="bold" style="font-size:16px">'+ci.roomNumber+'</div></div>'
     +'<div><div class="xs">Tipo</div><div class="bold">'+(room?.type||'-')+'</div></div>'
-    +'<div><div class="xs">Precio/noche</div><div class="bold c-amber">'+fmtGs(ci.pricePerNightGs||0)+'</div></div>'
+    +'<div><div class="xs">Precio/noche</div><div class="bold" style="color:var(--green)">'+(ci.totalRoomUSD&&ci.nights?'US$ '+(ci.totalRoomUSD/ci.nights).toFixed(2):fmtGs(ci.pricePerNightGs||0))+'</div></div>'
     +'</div>'
     +'<div class="divider"></div>'
     +'<div class="sec-title">Huesped</div>'
@@ -1253,9 +1253,7 @@ function mViewRes(ciId){
     +'</div>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--surface2);border-radius:8px;margin-top:8px">'
     +'<span class="bold">Total habitacion</span>'
-    +'<span class="bold c-amber" style="font-size:16px">'
-    +(ci.totalRoomUSD?'US$ '+ci.totalRoomUSD.toFixed(2)+' ':'')+'</span>'
-    +'<span style="color:var(--text3);font-size:13px">≈ '+fmtGs(ci.totalRoomGs||0)+'</span>'
+    +'<span class="bold" style="color:var(--green);font-size:16px">'+(ci.totalRoomUSD?'US$ '+ci.totalRoomUSD.toFixed(2):'')+'</span>'
     +'</div>'
     +(ci.obs?'<div class="alert warning" style="margin-top:8px">Obs: '+ci.obs+'</div>':'')
     +'<div class="modal-footer">'
@@ -1349,10 +1347,10 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
   const ci=DB.checkins.find(x=>x.id===ciId);if(!ci)return;
   const room=DB.rooms.find(r=>r.id===ci.roomId);
   const n=nts(ci.checkIn,ci.checkOut);
-  const totalGs=ci.totalRoomGs||0;
+  const totalGs=roundGs(ci.totalRoomGs||0);
   const pagos=window._ciPagos||[];
   const descuento=window._ciDescuento||0;
-  const totalConDesc=Math.max(0,totalGs-descuento);
+  const totalConDesc=roundGs(Math.max(0,totalGs-descuento));
   const totalPagado=pagos.reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
   const saldo=totalConDesc-totalPagado;
   const completo=totalPagado>=totalConDesc&&totalConDesc>0;
@@ -1390,7 +1388,7 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
       :'<div class="alert warning" style="font-size:11px;margin-bottom:8px">&#9888; Registra pagos hasta cubrir el total. Podes combinar varios metodos.</div>')
     +'<div class="sec-title" style="margin-bottom:4px">Agregar pago</div>'
     +'<div class="alert info" style="font-size:11px;margin-bottom:6px">'
-    +'Equiv. USD del saldo: <b style="color:var(--green)">US$ '+(saldo/usdRate2).toFixed(2)+'</b>'
+    +'Equiv. USD del saldo: <b style="color:#00dc8f">US$ '+(saldo/usdRate2).toFixed(2)+'</b>'
     +' · Venta: <b class="c-amber">Gs. '+usdRate2.toLocaleString()+'/USD</b>'
     +' · Compra (vuelto): <b>Gs. '+(todayRates().PYGBUY||usdRate2).toLocaleString()+'/USD</b></div>'
     +'<div class="field-row" style="align-items:flex-end">'
@@ -1459,7 +1457,7 @@ function addPagoCIUnit(ciId,cajeroResp,usdSell,usdBuy){
   const ci=DB.checkins.find(x=>x.id===ciId);
   const totalGs2=ci?ci.totalRoomGs||0:0;
   const descuento=window._ciDescuento||0;
-  const totalConDesc=Math.max(0,totalGs2-descuento);
+  const totalConDesc=roundGs(Math.max(0,totalGs2-descuento));
   const pagos=window._ciPagos||[];
   const totalPagado=pagos.reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
   const saldo=totalConDesc-totalPagado;
@@ -1475,8 +1473,8 @@ function addPagoCIUnit(ciId,cajeroResp,usdSell,usdBuy){
       const vueltoGs=roundGs(montoGs-saldo);
       vueltoMsg='Vuelto al cliente: Gs. '+vueltoGs.toLocaleString();
     }
-    montoGs=saldo;
-    toast('&#128181; '+vueltoMsg,'info');
+    montoGs=roundGs(saldo);
+    toast('💵 '+vueltoMsg,'success');
   }
   if(!window._ciPagos)window._ciPagos=[];
   window._ciPagos.push({metodo:metodoLabel,monto:montoGs,montoGs,unit,amtOrig:amt});
