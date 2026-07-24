@@ -1887,18 +1887,69 @@ function mCheckout(ciId){
     +'</div>'
     +'</div>';
 
-  // ── RESUMEN ── solo barra horizontal sin borde doble
-  var resHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;border:2px solid '+(hasPend?'var(--red)':'var(--green)')+';border-radius:8px;overflow:hidden;margin-top:10px">'
-    +'<div style="text-align:center;padding:12px 8px;background:var(--surface2)">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);margin-bottom:4px">TOTAL</div>'
-    +'<div style="font-size:20px;font-weight:700">'+fmtGs(totGs)+'</div></div>'
-    +'<div style="text-align:center;padding:12px 8px;background:var(--greenbg);border-left:1px solid var(--border);border-right:1px solid var(--border)">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--green);margin-bottom:4px">PAGADO</div>'
-    +'<div style="font-size:20px;font-weight:700;color:var(--green)">'+fmtGs(paidGs)+'</div></div>'
-    +'<div style="text-align:center;padding:12px 8px;background:'+(hasPend?'var(--redbg)':'var(--greenbg)')+'">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:'+(hasPend?'var(--red)':'var(--green)')+';margin-bottom:4px">PENDIENTE</div>'
-    +'<div style="font-size:20px;font-weight:700;color:'+(hasPend?'var(--red)':'var(--green)')+'">'+( hasPend?fmtGs(pendGs):'✓ 0')+'</div>'
-    +'</div></div>';
+  // ── RESUMEN — tabla por categoría con columnas USD / Gs. / Pendiente ──
+  var alojPayments=(DB.payments||[]).filter(function(p){return p.checkinId===ci.id&&(p.concept||'').indexOf('Hab.')>=0;});
+  var alojPaidUSD=alojPayments.filter(function(p){return p.method==='Efectivo USD';}).reduce(function(a,p){return a+(p.amountGs||0);},0);
+  var alojPaidGsOnly=alojPayments.filter(function(p){return p.method!=='Efectivo USD';}).reduce(function(a,p){return a+(p.amountGs||0);},0);
+  var isBooking=(ci.source||'').toLowerCase().indexOf('booking')>=0||(ci.source||'').toLowerCase().indexOf('airbnb')>=0;
+  var _rates2=DB.currency&&DB.currency.rates?DB.currency.rates:{};
+  var _lastDay2=Object.keys(_rates2).sort().reverse()[0];
+  var _usdSell2=(_lastDay2&&_rates2[_lastDay2]&&_rates2[_lastDay2].PYG)||7800;
+  function fmtUSDfromGs(gs){return 'US$ '+(gs/_usdSell2).toFixed(2);}
+  var alojTotalGs2=alojCargos.reduce(function(a,c){return a+(c.amountGs||0);},0);
+  var alojPendGs2=alojTotalGs2-alojCargos.filter(function(c){return c.paid;}).reduce(function(a,c){return a+(c.amountGs||0);},0);
+  var consTotalGs2=consCargos.reduce(function(a,c){return a+(c.amountGs||0);},0);
+  var consPendGs3=consTotalGs2-consCargos.filter(function(c){return c.paid;}).reduce(function(a,c){return a+(c.amountGs||0);},0);
+  var svcTotalGs2=svcCargos.reduce(function(a,c){return a+(c.amountGs||0);},0);
+  var svcPendGs3=svcTotalGs2-svcCargos.filter(function(c){return c.paid;}).reduce(function(a,c){return a+(c.amountGs||0);},0);
+  var grandTot2=alojTotalGs2+consTotalGs2+svcTotalGs2;
+  var grandPend2=alojPendGs2+consPendGs3+svcPendGs3;
+  // Columnas USD y Gs. para alojamiento
+  var alojUSDcol,alojGscol2;
+  if(isBooking){
+    var totalUSDval=ci.totalRoomUSD||(alojTotalGs2/_usdSell2);
+    alojUSDcol='US$ '+totalUSDval.toFixed(2);
+    alojGscol2=fmtGs(alojTotalGs2);
+  } else if(alojPaidUSD>0&&alojPaidGsOnly>0){
+    alojUSDcol=fmtUSDfromGs(alojPaidUSD);
+    alojGscol2=fmtGs(alojPaidGsOnly);
+  } else if(alojPaidUSD>0){
+    alojUSDcol=fmtUSDfromGs(alojPaidUSD);
+    alojGscol2='—';
+  } else {
+    alojUSDcol='—';
+    alojGscol2=fmtGs(alojTotalGs2);
+  }
+  function resRow2(label,usdVal,gsVal,pendVal,isTot){
+    var bg=isTot?'background:var(--surface3);border-top:2px solid var(--border2)':'background:var(--surface2)';
+    var fw=isTot?'font-weight:700':'font-weight:500';
+    var fs=isTot?'font-size:13px':'font-size:12px';
+    var pc=pendVal>0?'var(--red)':'var(--green)';
+    var pt=pendVal>0?fmtGs(pendVal):'✓ 0';
+    return '<tr style="'+bg+'"><td style="padding:8px 10px;border-bottom:1px solid var(--border);'+fs+';'+fw+'">'+label+'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid var(--border);'+fs+';text-align:right;color:var(--teal)">'+usdVal+'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid var(--border);'+fs+';text-align:right">'+gsVal+'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid var(--border);'+fs+';text-align:right;color:'+pc+'">'+pt+'</td>'
+      +'</tr>';
+  }
+  var alojLabel='🏨 Alojamiento'+(isBooking?' <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--accentbg);color:var(--accent)">'+(ci.source||'Booking')+'</span>':'');
+  var resHTML='<div style="border:2px solid '+(hasPend?'var(--red)':'var(--green)')+';border-radius:8px;overflow:hidden;margin-top:10px">'
+    +'<table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr style="background:var(--surface3)">'
+    +'<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);text-align:left;border-bottom:2px solid var(--border2)">Concepto</th>'
+    +'<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--teal);text-align:right;border-bottom:2px solid var(--border2)">USD</th>'
+    +'<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);text-align:right;border-bottom:2px solid var(--border2)">Gs.</th>'
+    +'<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);text-align:right;border-bottom:2px solid var(--border2)">Pendiente</th>'
+    +'</tr></thead><tbody>'
+    +resRow2(alojLabel,alojUSDcol,alojGscol2,alojPendGs2,false)
+    +resRow2('🍖 Consumición','—',fmtGs(consTotalGs2),consPendGs3,false)
+    +resRow2('✚ Servicios adicionales','—',fmtGs(svcTotalGs2),svcPendGs3,false)
+    +'<tr style="background:var(--surface3);border-top:2px solid var(--border2)">'
+    +'<td style="padding:9px 10px;font-size:13px;font-weight:700">TOTAL</td>'
+    +'<td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;color:var(--teal)">'+(isBooking&&ci.totalRoomUSD?'US$ '+ci.totalRoomUSD.toFixed(2):(alojPaidUSD>0?fmtUSDfromGs(alojPaidUSD):'—'))+'</td>'
+    +'<td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right">'+fmtGs(grandTot2)+'</td>'
+    +'<td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;color:'+(grandPend2>0?'var(--red)':'var(--green)')+'">'+( grandPend2>0?fmtGs(grandPend2):'✓ 0')+'</td>'
+    +'</tr></tbody></table></div>';
 
   var alertHTML='<div class="alert '+(hasPend?'warning':'success')+'" style="margin-top:10px">'
     +(hasPend?'&#9888; <b>Deuda de '+fmtGs(pendGs)+'.</b> Saldá en Caja & Cobros antes de confirmar el check-out.'
