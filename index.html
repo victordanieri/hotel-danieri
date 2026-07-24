@@ -528,7 +528,7 @@ function migrateHistoricClients(){
         doc:ci.guestDoc||'',tel:ci.guestTel||'',email:ci.guestEmail||'',
         vehiclePlate:ci.vehiclePlate||'',pais:ci.paisOrigen||'',
         ciudad:'',cumple:'',tags:[],notas:'',
-        source:ci.source||'',reservadoPor:ci.reservadoPor||'',
+        source:ci.source||ci.channel||'',reservadoPor:ci.reservadoPor||'',
         direccion:ci.direccion||'',adultos:ci.adultos||1,
         prefHab:'',prefPiso:'',prefNota:'',
         creadoAt:now,updatedAt:now,
@@ -3503,7 +3503,7 @@ async function doMigrateClientes(){
       if(!cli.email&&ci.guestEmail&&ci.guestEmail!=='-'){cli.email=ci.guestEmail;upd=true;}
       if(!cli.vehiclePlate&&ci.vehiclePlate){cli.vehiclePlate=ci.vehiclePlate;upd=true;}
       if(!cli.pais&&ci.paisOrigen){cli.pais=ci.paisOrigen;upd=true;}
-      if(!cli.source&&ci.source){cli.source=ci.source;upd=true;}
+      if(!cli.source&&(ci.source||ci.channel)){cli.source=ci.source||ci.channel;upd=true;}
       if(!cli.reservadoPor&&ci.reservadoPor){cli.reservadoPor=ci.reservadoPor;upd=true;}
       if(upd){cli.updatedAt=now;actualizados++;}
       if(!ci.clienteId)ci.clienteId=cli.id;
@@ -3513,7 +3513,7 @@ async function doMigrateClientes(){
         doc:ci.guestDoc||'',tel:ci.guestTel||'',email:ci.guestEmail||'',
         vehiclePlate:ci.vehiclePlate||'',pais:ci.paisOrigen||'',
         ciudad:'',cumple:'',tags:[],notas:'',
-        source:ci.source||'',reservadoPor:ci.reservadoPor||'',
+        source:ci.source||ci.channel||'',reservadoPor:ci.reservadoPor||'',
         direccion:ci.direccion||'',adultos:ci.adultos||1,
         prefHab:'',prefPiso:'',prefNota:'',
         creadoAt:now,updatedAt:now,
