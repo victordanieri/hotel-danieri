@@ -3476,6 +3476,7 @@ function cfgDatos(){
     +'</div>'
     +'<div class="divider"></div><div class="sec-title">Zona de peligro</div>'
     +'<div class="flex" style="gap:10px;margin-top:10px;flex-wrap:wrap">'
+    +(can('superadmin')?'<button class="btn-danger btn-sm" onclick="resetClientes()">&#128100; Limpiar base clientes</button>':'')
     +'<button class="btn-danger" onclick="resetOp()">&#9888; Reset operativo</button>'
     +(can('superadmin')?'<button class="btn-danger" onclick="resetAll()">&#128683; Reset total (Superadmin)</button>':'')
     +'</div>'
@@ -3484,6 +3485,53 @@ function cfgDatos(){
     +'<b>Reset total:</b> Borra absolutamente todo. Requiere confirmacion escrita.'
     +'</div></div>';
 }
+async function resetClientes(){
+  if(!confirm('¿Borrar TODOS los clientes y reimportar desde historial? Esta acción no se puede deshacer.'))return;
+  DB.clientes={lista:[],tags:[],origenes:[]};
+  // Limpiar clienteId de todos los checkins
+  DB.checkins.forEach(ci=>{delete ci.clienteId;});
+  // Reimportar todos desde cero
+  const now=new Date().toISOString();
+  let creados=0;
+  DB.checkins.filter(ci=>ci.guestName&&ci.status!=='cancelled').forEach(ci=>{
+    let cli=DB.clientes.lista.find(c=>
+      (ci.guestDoc&&ci.guestDoc.trim()&&ci.guestDoc!=='-'&&c.doc===ci.guestDoc)||
+      c.nombre.toLowerCase().trim()===ci.guestName.toLowerCase().trim()
+    );
+    if(cli){
+      if(!ci.clienteId)ci.clienteId=cli.id;
+    } else {
+      const nc={
+        id:uid(),nombre:ci.guestName,
+        doc:ci.guestDoc||'',tel:ci.guestTel||'',email:ci.guestEmail||'',
+        vehiclePlate:ci.vehiclePlate||'',pais:ci.paisOrigen||'',
+        ciudad:'',cumple:'',tags:[],notas:'',
+        source:ci.source||ci.channel||'',
+        reservadoPor:ci.reservadoPor||'',
+        direccion:ci.direccion||'',adultos:ci.adultos||1,
+        prefHab:'',prefPiso:'',prefNota:'',
+        creadoAt:now,updatedAt:now,
+      };
+      DB.clientes.lista.push(nc);
+      ci.clienteId=nc.id;
+      creados++;
+    }
+  });
+  localStorage.setItem(KEY,JSON.stringify(DB));
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({id:SB_ID,data:DB,updated_at:new Date().toISOString()})
+    });
+    if(r.ok){
+      log('reset_clientes','Reset y reimport clientes: '+creados+' creados');
+      render();
+      toast('✓ Base de clientes reconstruida: '+creados+' clientes con origen correcto','success');
+    } else toast('Error Supabase: '+r.status,'error');
+  }catch(e){toast('Error: '+e.message,'error');}
+}
+
 async function doForceUpdateClienteSource(){
   // Fuerza actualización de source en TODOS los clientes desde sus checkins
   if(!DB.clientes||!DB.clientes.lista||!DB.clientes.lista.length){
@@ -4421,7 +4469,7 @@ function renderCliLista(){
         }
         return '<tr>'
           +'<td><div class="bold">'+c.nombre+'</div>'+(c.empresa?'<div class="xs muted">'+c.empresa+'</div>':'')+'</td>'
-          +'<td><span class="tag xs">'+(c.origen||'-')+'</span></td>'
+          +'<td><span class="tag xs">'+(c.source||c.origen||'-')+'</span></td>'
           +'<td class="xs">'+(c.tel||c.whatsapp?'&#128241; '+(c.whatsapp||c.tel)+'<br>':'')+(c.email?'&#9993; '+c.email:'')+'</td>'
           +'<td>'+(c.tags||[]).map(function(t){return'<span class="badge '+(t==='VIP'?'amber':t==='Corporativo'?'blue':'green')+'" style="font-size:9px">'+t+'</span>';}).join(' ')+'</td>'
           +'<td class="xs">'+(c.cumple||'-')+cumpleBadge+'</td>'
