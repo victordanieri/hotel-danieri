@@ -256,7 +256,14 @@ async function sbLoad(){
         localStorage.setItem(KEY+'_ts',remoteTs);
         migrateDB();
         await migratePasswords();
+        const clientesAntes=(DB.clientes&&DB.clientes.lista)?DB.clientes.lista.length:0;
         migrateHistoricClients();
+        const clientesDespues=(DB.clientes&&DB.clientes.lista)?DB.clientes.lista.length:0;
+        // Si la migración agregó clientes nuevos, subir a Supabase
+        if(clientesDespues>clientesAntes){
+          await sbSave();
+          console.log('Clientes migrados a Supabase:',clientesDespues-clientesAntes,'nuevos');
+        }
         render();
         toast('&#9729; Datos cargados desde la nube','success');
       } else {
@@ -512,8 +519,7 @@ function migrateHistoricClients(){
     synced++;
   });
   if(synced>0){
-    console.log('migrateHistoricClients: '+synced+' checkins sincronizados a clientes');
-    save();
+    console.log('migrateHistoricClients: '+synced+' checkins procesados, clientes: '+(DB.clientes&&DB.clientes.lista?DB.clientes.lista.length:0));
   }
 }
 function fd(s){if(!s)return '-';return new Date(s+'T12:00:00').toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});}
