@@ -1270,11 +1270,13 @@ function mCobrarAnticipado(ciId){
   const totalConDesc=Math.max(0,totalGs-descuento);
   const totalPagado=pagos.reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
   const saldo=totalConDesc-totalPagado;
-  const _pGs=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
+  // Deuda única en USD — saldo = totalUSD - (pagosUSD + pagosGsConvertidos)
+  const _totalUSD=ci.totalRoomUSD||0;
   const _pUSD=pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0);
-  const _dGs=Math.max(0,totalConDesc-_pGs);
-  const _dUSD=ci.totalRoomUSD?Math.max(0,ci.totalRoomUSD-_pUSD):0;
-  const completo=_dGs<=0&&_dUSD<=0&&(_pGs>0||_pUSD>0);
+  const _pGsEquiv=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
+  const _pGsEnUSD=usdRate2>0?_pGsEquiv/usdRate2:0;
+  const _saldoUSD=Math.max(0,_totalUSD-(_pUSD+_pGsEnUSD));
+  const completo=_saldoUSD<0.01&&(_pUSD>0||_pGsEquiv>0);
   // Precio en USD si la habitación tiene pricesUSD
   const room2=DB.rooms.find(r=>r.id===ci.roomId);
   const usdRate2=DB.currency?.rates?.[Object.keys(DB.currency?.rates||{}).sort().reverse()[0]]?.PYG||7800;
@@ -1357,11 +1359,13 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
   const totalConDesc=roundGs(Math.max(0,totalGs-descuento));
   const totalPagado=pagos.reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
   const saldo=totalConDesc-totalPagado;
-  const _pGs=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
+  // Deuda única en USD — saldo = totalUSD - (pagosUSD + pagosGsConvertidos)
+  const _totalUSD=ci.totalRoomUSD||0;
   const _pUSD=pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0);
-  const _dGs=Math.max(0,totalConDesc-_pGs);
-  const _dUSD=ci.totalRoomUSD?Math.max(0,ci.totalRoomUSD-_pUSD):0;
-  const completo=_dGs<=0&&_dUSD<=0&&(_pGs>0||_pUSD>0);
+  const _pGsEquiv=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
+  const _pGsEnUSD=usdRate2>0?_pGsEquiv/usdRate2:0;
+  const _saldoUSD=Math.max(0,_totalUSD-(_pUSD+_pGsEnUSD));
+  const completo=_saldoUSD<0.01&&(_pUSD>0||_pGsEquiv>0);
   // Precio en USD si la habitación tiene pricesUSD
   const room2=DB.rooms.find(r=>r.id===ci.roomId);
   const usdRate2=DB.currency?.rates?.[Object.keys(DB.currency?.rates||{}).sort().reverse()[0]]?.PYG||7800;
@@ -1396,19 +1400,32 @@ function renderConfirmCheckinModal(ciId,cajeroResp){
     +((ci.adultos||ci.ninos)?'<div style="padding:6px 10px;background:var(--surface2);border-radius:6px;margin-bottom:8px;font-size:12px">&#128100; <b>'+(ci.adultos||1)+' adulto(s)</b>'+(ci.ninos?' + <b>'+ci.ninos+' niño(s)</b>':'')+'  —  Verificar al check-in que no ingresen más personas que las declaradas.</div>':'')
     +'<div class="sec-title" style="margin-bottom:6px">Pagos registrados</div>'
     +pagosHtml
-    +(window._ciResumen=function(pg,pu,dg,du,rg,ru,tgs,tusd){return '<table style="width:100%;margin:8px 0;border-collapse:collapse;font-size:12px">'
-      +'<tr style="color:var(--text3)"><td style="padding:4px"></td><td style="text-align:center;padding:4px">Gs.</td><td style="text-align:center;padding:4px;color:#00dc8f">USD</td></tr>'
-      +'<tr><td class="xs" style="padding:4px">Total</td><td style="text-align:center;font-weight:700;color:var(--amber);padding:4px">'+fmtGs(tgs)+'</td><td style="text-align:center;font-weight:700;color:#00dc8f;padding:4px">'+(tusd?'US$ '+tusd.toFixed(2):'-')+'</td></tr>'
-      +'<tr><td class="xs" style="padding:4px">Cobrado</td><td style="text-align:center;font-weight:700;color:var(--green);padding:4px">'+fmtGs(pg)+'</td><td style="text-align:center;font-weight:700;color:var(--green);padding:4px">'+(pu>0?'US$ '+pu.toFixed(2):'-')+'</td></tr>'
-      +'<tr><td class="xs" style="padding:4px">Saldo</td><td style="text-align:center;font-weight:700;color:'+rg+';padding:4px">'+fmtGs(dg)+'</td><td style="text-align:center;font-weight:700;color:'+ru+';padding:4px">'+(tusd?du>0?'US$ '+du.toFixed(2):'US$ 0.00':'-')+'</td></tr>'
-      +'</table>';}(
-        pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0),
-        pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0),
-        Math.max(0,totalConDesc-pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0)),
-        ci.totalRoomUSD?Math.max(0,ci.totalRoomUSD-pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0)):0,
-        Math.max(0,totalConDesc-pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0))>0?'var(--red)':'var(--green)',
-        ci.totalRoomUSD&&Math.max(0,ci.totalRoomUSD-pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0))>0?'var(--red)':'var(--green)',
-        totalConDesc,ci.totalRoomUSD))
+    +(function(){
+      // Deuda única: todo en USD, el saldo restante se muestra en USD y su equiv en Gs.
+      var totalUSD=ci.totalRoomUSD||0;
+      var usdSell=window._ciRates?window._ciRates.sell:usdRate2;
+      var pagoUSD=pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0);
+      var pagoGsEquiv=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
+      var pagoGsEnUSD=usdSell>0?pagoGsEquiv/usdSell:0;
+      var totalPagadoUSD=pagoUSD+pagoGsEnUSD;
+      var saldoUSD=Math.max(0,totalUSD-totalPagadoUSD);
+      var saldoGs=roundGs(Math.round(saldoUSD*usdSell));
+      var colorSaldo=saldoUSD>0?'var(--red)':'var(--green)';
+      return '<table style="width:100%;margin:8px 0;border-collapse:collapse;font-size:12px">'
+        +'<tr style="color:var(--text3)"><td style="padding:4px 8px"></td>'
+        +'<td style="text-align:center;padding:4px;color:#00dc8f">USD</td>'
+        +'<td style="text-align:center;padding:4px;color:var(--amber)">Equiv. Gs.</td></tr>'
+        +'<tr><td class="xs" style="padding:4px 8px">Total</td>'
+        +'<td style="text-align:center;font-weight:700;color:#00dc8f;padding:4px">US$ '+totalUSD.toFixed(2)+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:var(--amber);padding:4px">'+fmtGs(roundGs(Math.round(totalUSD*usdSell)))+'</td></tr>'
+        +'<tr><td class="xs" style="padding:4px 8px">Cobrado</td>'
+        +'<td style="text-align:center;font-weight:700;color:var(--green);padding:4px">US$ '+totalPagadoUSD.toFixed(2)+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:var(--green);padding:4px">'+fmtGs(pagoGsEquiv+roundGs(Math.round(pagoUSD*usdSell)))+'</td></tr>'
+        +'<tr><td class="xs" style="padding:4px 8px">Saldo</td>'
+        +'<td style="text-align:center;font-weight:700;color:'+colorSaldo+';padding:4px">US$ '+saldoUSD.toFixed(2)+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:'+colorSaldo+';padding:4px">'+fmtGs(saldoGs)+'</td></tr>'
+        +'</table>';
+    })()
     +(completo
       ?'<div class="alert success" style="margin-bottom:8px">&#10003; Pago completo. Ya podes confirmar el check-in.</div>'
       :'<div class="alert warning" style="font-size:11px;margin-bottom:8px">&#9888; Registra pagos hasta cubrir el total. Podes combinar varios metodos.</div>')
@@ -1515,28 +1532,29 @@ function addPagoCIAuto(){
   const ci=DB.checkins.find(x=>x.id===ciId);if(!ci)return;
   const descuento=window._ciDescuento||0;
   const pagos=window._ciPagos||[];
-  const pagoGs=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
+  // Deuda única en USD
+  const totalUSD2=ci.totalRoomUSD||(roundGs((ci.totalRoomGs||0)-descuento)/usdSell);
   const pagoUSD=pagos.filter(p=>p.unit==='USD').reduce((a,p)=>a+(p.amtOrig||0),0);
-  const totalGs2=roundGs(Math.max(0,(ci.totalRoomGs||0)-descuento));
-  const totalUSD2=ci.totalRoomUSD||0;
+  const pagoGsEquiv=pagos.filter(p=>p.unit!=='USD').reduce((a,p)=>a+(p.montoGs||p.monto||0),0);
+  const pagoGsEnUSD=usdSell>0?pagoGsEquiv/usdSell:0;
+  const saldoUSDtotal=Math.max(0,totalUSD2-(pagoUSD+pagoGsEnUSD));
+  const saldoGsEquiv=roundGs(Math.round(saldoUSDtotal*usdSell));
   let montoGs=0,amtFinal=amt,vueltoMsg='';
   if(isUSD){
-    const saldoUSD=Math.max(0,totalUSD2-pagoUSD);
-    if(saldoUSD<=0){toast('Saldo en USD ya cubierto','info');return;}
-    if(amt>saldoUSD){
-      const vueltoUSD=amt-saldoUSD;
+    if(saldoUSDtotal<=0){toast('Deuda ya cubierta','info');return;}
+    if(amt>saldoUSDtotal){
+      const vueltoUSD=amt-saldoUSDtotal;
       const vueltoGs=roundGs(Math.round(vueltoUSD*usdBuy));
-      vueltoMsg='💵 Vuelto: US$ '+vueltoUSD.toFixed(2)+' → Gs. '+vueltoGs.toLocaleString()+' (tasa compra)';
-      amtFinal=saldoUSD;
+      vueltoMsg='💵 Vuelto: US$ '+vueltoUSD.toFixed(2)+' → Gs. '+vueltoGs.toLocaleString()+' (tasa compra Gs. '+usdBuy.toLocaleString()+'/USD)';
+      amtFinal=saldoUSDtotal;
     }
     montoGs=roundGs(Math.round(amtFinal*usdSell));
   } else {
-    const saldoGs=Math.max(0,totalGs2-pagoGs);
-    if(saldoGs<=0){toast('Saldo en Gs. ya cubierto','info');return;}
+    if(saldoGsEquiv<=0){toast('Deuda ya cubierta','info');return;}
     montoGs=roundGs(Math.round(amt));
-    if(montoGs>saldoGs){
-      vueltoMsg='💵 Vuelto: Gs. '+roundGs(montoGs-saldoGs).toLocaleString();
-      montoGs=saldoGs;
+    if(montoGs>saldoGsEquiv){
+      vueltoMsg='💵 Vuelto: Gs. '+roundGs(montoGs-saldoGsEquiv).toLocaleString();
+      montoGs=saldoGsEquiv;
     }
   }
   if(!window._ciPagos)window._ciPagos=[];
