@@ -476,7 +476,38 @@ function migrateHistoricClients(){
   if(!DB.clientes.lista)DB.clientes.lista=[];
   let synced=0;
   DB.checkins.filter(ci=>ci.guestName&&ci.status!=='cancelled').forEach(ci=>{
-    syncClienteFromCheckin(ci);
+    // Inline sync para evitar dependencia de orden de funciones
+    const now=new Date().toISOString();
+    let cli=DB.clientes.lista.find(c=>
+      (ci.guestDoc&&c.doc&&c.doc===ci.guestDoc)||
+      (ci.clienteId&&c.id===ci.clienteId)||
+      c.nombre.toLowerCase()===ci.guestName.toLowerCase()
+    );
+    if(cli){
+      if(!cli.doc&&ci.guestDoc){cli.doc=ci.guestDoc;}
+      if(!cli.tel&&ci.guestTel){cli.tel=ci.guestTel;}
+      if(!cli.email&&ci.guestEmail){cli.email=ci.guestEmail;}
+      if(!cli.vehiclePlate&&ci.vehiclePlate){cli.vehiclePlate=ci.vehiclePlate;}
+      if(!cli.pais&&ci.paisOrigen){cli.pais=ci.paisOrigen;}
+      if(!cli.source&&ci.source){cli.source=ci.source;}
+      if(!cli.reservadoPor&&ci.reservadoPor){cli.reservadoPor=ci.reservadoPor;}
+      if(!cli.direccion&&ci.direccion){cli.direccion=ci.direccion;}
+      cli.updatedAt=now;
+      if(!ci.clienteId)ci.clienteId=cli.id;
+    } else {
+      const newCli={
+        id:uid(),nombre:ci.guestName,
+        doc:ci.guestDoc||'',tel:ci.guestTel||'',email:ci.guestEmail||'',
+        vehiclePlate:ci.vehiclePlate||'',pais:ci.paisOrigen||'',
+        ciudad:'',cumple:'',tags:[],notas:'',
+        source:ci.source||'',reservadoPor:ci.reservadoPor||'',
+        direccion:ci.direccion||'',adultos:ci.adultos||1,
+        prefHab:'',prefPiso:'',prefNota:'',
+        creadoAt:now,updatedAt:now,
+      };
+      DB.clientes.lista.push(newCli);
+      ci.clienteId=newCli.id;
+    }
     synced++;
   });
   if(synced>0){
@@ -4736,8 +4767,9 @@ function syncClienteFromCheckin(ci){
   if(!ci||!ci.guestName)return;
   if(!DB.clientes)DB.clientes={lista:[],tags:[],origenes:[]};
   if(!DB.clientes.lista)DB.clientes.lista=[];
-  // Buscar cliente existente por doc o nombre
+  // Buscar por clienteId, doc o nombre — en ese orden de prioridad
   let cli=DB.clientes.lista.find(c=>
+    (ci.clienteId&&c.id===ci.clienteId)||
     (ci.guestDoc&&c.doc&&c.doc===ci.guestDoc)||
     c.nombre.toLowerCase()===ci.guestName.toLowerCase()
   );
