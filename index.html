@@ -1258,7 +1258,7 @@ function mViewRes(ciId){
     +(ci.obs?'<div class="alert warning" style="margin-top:8px">Obs: '+ci.obs+'</div>':'')
     +'<div class="modal-footer">'
     +(can('admin')?'<button class="btn-danger btn-sm" onclick="cancelRes(\''+ciId+'\')">Cancelar reserva</button>':'')
-    +'<button class="btn-secondary" onclick="mEditResData(\''+ciId+'\')">&#9998; Editar datos</button>'    +'<button class="btn-secondary" onclick="closeModal()">Cerrar</button>'    +'<button class="btn-primary" onclick="mConfirmCheckin(\''+ciId+'\')">Confirmar Check-In</button>'
+    +'<button class="btn-secondary" onclick="mEditResData(\''+ciId+'\')">&#9998; Editar datos</button>'    +'<button class="btn-secondary" onclick="closeModal()">Cerrar</button>'    +'<button class="btn-primary" id="btn-confirm-ci" data-ciid="'+ciId+'" onclick="mConfirmCheckin(this.dataset.ciid)">Confirmar Check-In</button>'
     +'</div></div>',true);
 }
 function mCobrarAnticipado(ciId){
