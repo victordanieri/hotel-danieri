@@ -256,6 +256,7 @@ async function sbLoad(){
         localStorage.setItem(KEY+'_ts',remoteTs);
         migrateDB();
         await migratePasswords();
+        migrateHistoricClients();
         render();
         toast('&#9729; Datos cargados desde la nube','success');
       } else {
