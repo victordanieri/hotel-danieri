@@ -1932,23 +1932,33 @@ function mCheckout(ciId){
       +'<td style="padding:8px 10px;border-bottom:1px solid var(--border);'+fs+';text-align:right;color:'+pc+'">'+pt+'</td>'
       +'</tr>';
   }
-  var alojLabel='🏨 Alojamiento'+(isBooking?' <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--accentbg);color:var(--accent)">'+(ci.source||'Booking')+'</span>':'');
+  // Alojamiento: solo estado (pagado/pendiente), sin montos — ya se cobró en check-in
+  var alojEstadoColor=alojPendGs2>0?'var(--red)':'var(--green)';
+  var alojEstadoTxt=alojPendGs2>0?'⚠ Pendiente':'✓ Pagado';
+  // Fila alojamiento sin columnas USD/Gs (solo estado)
+  // Totales de cons+svc para el resumen
+  var extrasTotal=consTotalGs2+svcTotalGs2;
+  var extrasPend=consPendGs3+svcPendGs3;
+  var extrasPaid=extrasTotal-extrasPend;
   var resHTML='<div style="border:2px solid '+(hasPend?'var(--red)':'var(--green)')+';border-radius:8px;overflow:hidden;margin-top:10px">'
     +'<table style="width:100%;border-collapse:collapse">'
     +'<thead><tr style="background:var(--surface3)">'
     +'<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);text-align:left;border-bottom:2px solid var(--border2)">Concepto</th>'
-    +'<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--teal);text-align:right;border-bottom:2px solid var(--border2)">USD</th>'
     +'<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);text-align:right;border-bottom:2px solid var(--border2)">Gs.</th>'
-    +'<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);text-align:right;border-bottom:2px solid var(--border2)">Pendiente</th>'
+    +'<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);text-align:right;border-bottom:2px solid var(--border2)">Estado</th>'
     +'</tr></thead><tbody>'
-    +resRow2(alojLabel,alojUSDcol,alojGscol2,alojPendGs2,false)
+    // Fila alojamiento: Gs. y USD se omiten, solo estado
+    +'<tr style="background:var(--surface2)">'
+    +'<td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;font-weight:500">🏨 Alojamiento</td>'
+    +'<td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;color:var(--text3)">—</td>'
+    +'<td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;font-weight:700;color:'+alojEstadoColor+'">'+alojEstadoTxt+'</td>'
+    +'</tr>'
     +resRow2('🍖 Consumición','—',fmtGs(consTotalGs2),consPendGs3,false)
     +resRow2('✚ Servicios adicionales','—',fmtGs(svcTotalGs2),svcPendGs3,false)
     +'<tr style="background:var(--surface3);border-top:2px solid var(--border2)">'
-    +'<td style="padding:9px 10px;font-size:13px;font-weight:700">TOTAL</td>'
-    +'<td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;color:var(--teal)">'+(isBooking&&ci.totalRoomUSD?'US$ '+ci.totalRoomUSD.toFixed(2):(alojPaidUSD>0?fmtUSDfromGs(alojPaidUSD):'—'))+'</td>'
-    +'<td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right">'+fmtGs(grandTot2)+'</td>'
-    +'<td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;color:'+(grandPend2>0?'var(--red)':'var(--green)')+'">'+( grandPend2>0?fmtGs(grandPend2):'✓ 0')+'</td>'
+    +'<td style="padding:9px 10px;font-size:13px;font-weight:700">TOTAL extras</td>'
+    +'<td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right">'+fmtGs(extrasTotal)+'</td>'
+    +'<td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;color:'+(extrasPend>0?'var(--red)':'var(--green)')+'">'+( extrasPend>0?'⚠ '+fmtGs(extrasPend):'✓ Pagado')+'</td>'
     +'</tr></tbody></table></div>';
 
   var alertHTML='<div class="alert '+(hasPend?'warning':'success')+'" style="margin-top:10px">'
